@@ -1,0 +1,384 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="ITS — Knowledge Base">
+  <title>ITS — Knowledge Base</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .kb-categories-bar {
+      display: flex;
+      gap: var(--space-2);
+      margin-bottom: var(--space-6);
+      overflow-x: auto;
+      padding-bottom: var(--space-2);
+    }
+    .kb-category-pill {
+      padding: var(--space-2) var(--space-4);
+      border-radius: var(--radius-full);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      cursor: pointer;
+      white-space: nowrap;
+      transition: background-color var(--transition-fast), color var(--transition-fast), border-color var(--transition-fast);
+    }
+    .kb-category-pill.active, .kb-category-pill:hover {
+      background: var(--brand-primary);
+      color: #fff;
+      border-color: var(--brand-primary);
+    }
+    .kb-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: var(--radius-lg);
+      padding: var(--space-6);
+      cursor: pointer;
+      transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
+      display: flex;
+      flex-direction: column;
+      height: 100%;
+    }
+    .kb-card:hover {
+      transform: translateY(-2px);
+      box-shadow: var(--shadow-md);
+      border-color: var(--brand-primary);
+    }
+    .kb-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(320px, 1fr));
+      gap: var(--space-6);
+    }
+    .kb-search-box { position: relative; }
+    .kb-search-icon {
+      position: absolute;
+      left: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      color: var(--text-muted);
+      pointer-events: none;
+      font-size: 18px;
+    }
+    .kb-card-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: var(--space-3);
+    }
+    .kb-card-title {
+      font-size: 16px;
+      font-weight: 700;
+      margin-bottom: var(--space-2);
+      line-height: 1.4;
+    }
+    .kb-card-footer {
+      margin-top: auto;
+      padding-top: var(--space-4);
+      border-top: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .kb-modal-meta {
+      margin-top: var(--space-6);
+      padding-top: var(--space-4);
+      border-top: 1px solid var(--border-subtle);
+      font-size: 12px;
+      color: var(--text-muted);
+      display: flex;
+      justify-content: space-between;
+    }
+    .search-input-kb { padding-left: 40px; font-size: 15px; }
+  </style>
+</head>
+<body>
+  <div id="toast-container" role="alert" aria-live="polite"></div>
+  <div class="app-layout">
+    <aside class="sidebar" id="sidebar" aria-label="Navigation"></aside>
+    <div class="main-content">
+      <header class="top-header" id="top-header"></header>
+      <main class="page-content" id="page-content">
+
+        <!-- Page Header -->
+        <div class="flex items-center justify-between mb-6 flex-wrap gap-4">
+          <div>
+            <h2 class="page-title">Knowledge Base 📚</h2>
+            <p class="text-secondary">Find immediate solutions, setup guides, and troubleshooting documentation.</p>
+          </div>
+          <div id="kb-staff-actions" class="hidden">
+            <button class="btn btn-primary" id="btn-create-article">
+              ➕ New Article
+            </button>
+          </div>
+        </div>
+
+        <!-- Search Header -->
+        <div class="card mb-6 p-4">
+          <div class="kb-search-box">
+            <input type="text" id="kb-search-input" class="form-control search-input-kb" placeholder="Search knowledge base articles by topic, keywords, or error messages...">
+            <span class="kb-search-icon" aria-hidden="true">🔍</span>
+          </div>
+        </div>
+
+        <!-- Categories Filter Pills -->
+        <div class="kb-categories-bar" id="category-pills">
+          <button class="kb-category-pill active" data-category="">All Categories</button>
+          <button class="kb-category-pill" data-category="General">General</button>
+          <button class="kb-category-pill" data-category="Hardware">Hardware</button>
+          <button class="kb-category-pill" data-category="Software">Software</button>
+          <button class="kb-category-pill" data-category="Network">Network &amp; VPN</button>
+          <button class="kb-category-pill" data-category="Account/Access">Account &amp; Access</button>
+          <button class="kb-category-pill" data-category="Email">Email &amp; Communication</button>
+          <button class="kb-category-pill" data-category="Security">Security</button>
+        </div>
+
+        <!-- Articles Grid -->
+        <div id="articles-container">
+          <div class="spinner" role="status" aria-label="Loading articles"></div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script>
+  let currentUser = null;
+  let activeCategory = '';
+  let allArticles = [];
+
+  (async () => {
+    currentUser = await App.requireAuth('/login.html');
+    if (!currentUser) return;
+
+    App.buildSidebar('kb');
+    App.buildHeader('Knowledge Base', 'Self-Service & Help');
+
+    // Show Create Article button if tech or admin
+    if (currentUser.role === 'technician' || currentUser.role === 'admin') {
+      document.getElementById('kb-staff-actions').classList.remove('hidden');
+      document.getElementById('btn-create-article').addEventListener('click', () => openArticleEditor());
+    }
+
+    // Category Pill Handlers
+    document.querySelectorAll('.kb-category-pill').forEach(pill => {
+      pill.addEventListener('click', () => {
+        document.querySelectorAll('.kb-category-pill').forEach(p => p.classList.remove('active'));
+        pill.classList.add('active');
+        activeCategory = pill.getAttribute('data-category');
+        loadArticles();
+      });
+    });
+
+    // Search Input Handler
+    document.getElementById('kb-search-input').addEventListener('input', App.debounce(() => {
+      loadArticles();
+    }, 300));
+
+    loadArticles();
+  })();
+
+  async function loadArticles() {
+    const container = document.getElementById('articles-container');
+    container.innerHTML = '<div class="spinner" role="status" aria-label="Loading articles"></div>';
+
+    const search = document.getElementById('kb-search-input').value.trim();
+    const params = new URLSearchParams();
+    if (search) params.set('search', search);
+    if (activeCategory) params.set('category', activeCategory);
+
+    try {
+      const res = await App.api('GET', `/kb?${params.toString()}`);
+      allArticles = res.articles || [];
+
+      if (allArticles.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state card p-10">
+            <div class="empty-state-icon">📚</div>
+            <div class="empty-state-title">No articles found</div>
+            <div class="empty-state-desc">
+              ${search ? `No articles match "${search}". Try different search terms.` : 'No documentation articles have been published in this category yet.'}
+            </div>
+            ${currentUser.role !== 'user' ? `
+              <button class="btn btn-primary btn-sm mt-4" onclick="document.getElementById('btn-create-article').click()">
+                ➕ Write First Article
+              </button>
+            ` : ''}
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = `
+        <div class="kb-grid">
+          ${allArticles.map(a => `
+            <div class="kb-card" data-id="${a.id}">
+              <div class="kb-card-top">
+                <span class="badge text-brand">${a.category}</span>
+                <span class="text-xs text-muted">👁️ ${a.views || 0} views</span>
+              </div>
+              <h3 class="kb-card-title">${a.title}</h3>
+              <div class="kb-card-footer">
+                <span>By ${a.author_name}</span>
+                <span>${App.timeAgo(a.updated_at || a.created_at)}</span>
+              </div>
+            </div>
+          `).join('')}
+        </div>
+      `;
+
+      // Attach card click handlers
+      container.querySelectorAll('.kb-card').forEach(card => {
+        card.addEventListener('click', () => {
+          const id = card.getAttribute('data-id');
+          openArticleViewModal(id);
+        });
+      });
+
+    } catch (err) {
+      container.innerHTML = `<div class="alert alert-error">Failed to load articles: ${err.message}</div>`;
+    }
+  }
+
+  async function openArticleViewModal(id) {
+    try {
+      const res = await App.api('GET', `/kb/${id}`);
+      const art = res.article;
+      const isStaff = currentUser.role === 'technician' || currentUser.role === 'admin';
+
+      App.showModal(`
+        <div class="modal-header">
+          <div>
+            <div class="flex items-center gap-2 mb-1">
+              <span class="badge text-brand">${art.category}</span>
+              ${!art.published ? '<span class="badge badge-draft">Draft</span>' : ''}
+              <span class="text-xs text-muted">👁️ ${art.views} views</span>
+            </div>
+            <h2 class="modal-title">${art.title}</h2>
+          </div>
+          <button class="modal-close" onclick="App.closeModal()">✕</button>
+        </div>
+        <div class="modal-body modal-scroll-body">
+          <div class="pre-wrap-text">${art.body}</div>
+          <div class="kb-modal-meta">
+            <span>Author: ${art.author_name} (${art.author_user_id})</span>
+            <span>Last updated: ${App.formatDateTime(art.updated_at || art.created_at)}</span>
+          </div>
+        </div>
+        <div class="modal-footer flex justify-between items-center">
+          <div>
+            ${isStaff ? `
+              <button class="btn btn-secondary btn-sm" id="modal-btn-edit">✏️ Edit</button>
+              <button class="btn btn-danger btn-sm ml-2" id="modal-btn-delete">🗑️ Delete</button>
+            ` : ''}
+          </div>
+          <button class="btn btn-primary btn-sm" onclick="App.closeModal()">Close</button>
+        </div>
+      `, (modalEl) => {
+        if (isStaff) {
+          const btnEdit = modalEl.querySelector('#modal-btn-edit');
+          const btnDel = modalEl.querySelector('#modal-btn-delete');
+          if (btnEdit) {
+            btnEdit.addEventListener('click', () => {
+              App.closeModal();
+              openArticleEditor(art);
+            });
+          }
+          if (btnDel) {
+            btnDel.addEventListener('click', async () => {
+              if (confirm(`Are you sure you want to delete article "${art.title}"?`)) {
+                try {
+                  await App.api('DELETE', `/kb/${art.id}`);
+                  App.closeModal();
+                  App.toast('Article deleted', 'success');
+                  loadArticles();
+                } catch (err) {
+                  App.toast(err.message, 'error');
+                }
+              }
+            });
+          }
+        }
+      });
+    } catch (err) {
+      App.toast('Failed to load article details', 'error');
+    }
+  }
+
+  function openArticleEditor(art = null) {
+    const isEdit = !!art;
+    App.showModal(`
+      <div class="modal-header">
+        <h2 class="modal-title">${isEdit ? 'Edit Article ✏️' : 'New Knowledge Base Article ➕'}</h2>
+        <button class="modal-close" onclick="App.closeModal()">✕</button>
+      </div>
+      <div class="modal-body p-6">
+        <form id="kb-editor-form">
+          <div class="form-group mb-4">
+            <label class="form-label">Article Title <span class="required" aria-hidden="true">*</span></label>
+            <input type="text" id="ed-title" class="form-control" required minlength="5" placeholder="e.g. How to connect to Corporate VPN on Windows &amp; Mac" value="${art ? art.title : ''}">
+          </div>
+          <div class="form-group mb-4">
+            <label class="form-label">Category <span class="required" aria-hidden="true">*</span></label>
+            <select id="ed-category" class="form-control form-select" required>
+              <option value="General" ${art?.category === 'General' ? 'selected' : ''}>General</option>
+              <option value="Hardware" ${art?.category === 'Hardware' ? 'selected' : ''}>Hardware</option>
+              <option value="Software" ${art?.category === 'Software' ? 'selected' : ''}>Software</option>
+              <option value="Network" ${art?.category === 'Network' ? 'selected' : ''}>Network &amp; VPN</option>
+              <option value="Account/Access" ${art?.category === 'Account/Access' ? 'selected' : ''}>Account &amp; Access</option>
+              <option value="Email" ${art?.category === 'Email' ? 'selected' : ''}>Email &amp; Communication</option>
+              <option value="Security" ${art?.category === 'Security' ? 'selected' : ''}>Security</option>
+            </select>
+          </div>
+          <div class="form-group mb-4">
+            <label class="form-label">Article Content <span class="required" aria-hidden="true">*</span></label>
+            <textarea id="ed-body" class="form-control" rows="10" required minlength="20" placeholder="Step-by-step instructions, troubleshooting tips, screenshots references...">${art ? art.body : ''}</textarea>
+          </div>
+          <div class="form-group mb-6">
+            <label class="flex items-center gap-2">
+              <input type="checkbox" id="ed-published" ${!art || art.published ? 'checked' : ''}>
+              <span>Publish article immediately (visible to all users)</span>
+            </label>
+          </div>
+          <div class="flex justify-end gap-2">
+            <button type="button" class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="btn-save-article">Save Article</button>
+          </div>
+        </form>
+      </div>
+    `, (modalEl) => {
+      const form = modalEl.querySelector('#kb-editor-form');
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const title = modalEl.querySelector('#ed-title').value.trim();
+        const category = modalEl.querySelector('#ed-category').value;
+        const body = modalEl.querySelector('#ed-body').value.trim();
+        const published = modalEl.querySelector('#ed-published').checked;
+
+        if (title.length < 5) { App.toast('Title must be at least 5 chars', 'warning'); return; }
+        if (body.length < 20) { App.toast('Content must be at least 20 chars', 'warning'); return; }
+
+        try {
+          if (isEdit) {
+            await App.api('PUT', `/kb/${art.id}`, { title, category, body, published });
+            App.toast('Article updated', 'success');
+          } else {
+            await App.api('POST', '/kb', { title, category, body, published });
+            App.toast('Article published', 'success');
+          }
+          App.closeModal();
+          loadArticles();
+        } catch (err) {
+          App.toast(err.message, 'error');
+        }
+      });
+    });
+  }
+  </script>
+</body>
+</html>
