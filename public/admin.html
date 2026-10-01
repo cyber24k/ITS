@@ -1,0 +1,259 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="ITS — Administrator Panel">
+  <title>ITS — Admin Management</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div id="toast-container" role="alert" aria-live="polite"></div>
+  <div class="app-layout">
+    <aside class="sidebar" id="sidebar" aria-label="Navigation"></aside>
+    <div class="main-content">
+      <header class="top-header" id="top-header"></header>
+      <main class="page-content" id="page-content">
+
+        <!-- Header -->
+        <div class="flex items-center justify-between mb-6 flex-wrap gap-4">
+          <div>
+            <h2 class="page-title">Admin Management ⚙️</h2>
+            <p class="text-secondary">Manage user directory, assign staff roles, and oversee account security.</p>
+          </div>
+          <div class="flex gap-2">
+            <a href="/dashboard.html" class="btn btn-secondary btn-sm">
+              📊 Analytics Dashboard
+            </a>
+          </div>
+        </div>
+
+        <!-- Search & Filter Bar -->
+        <div class="card mb-6 p-4">
+          <div class="flex items-center gap-4 flex-wrap">
+            <div class="filter-search-wrap">
+              <input type="text" id="admin-user-search" class="form-control search-box-input" placeholder="Search by name, email, or User ID (e.g. ITS-123456)...">
+              <span class="search-box-icon" aria-hidden="true">🔍</span>
+            </div>
+            <div class="filter-select-wrap">
+              <select id="admin-filter-role" class="form-control form-select">
+                <option value="">All Roles</option>
+                <option value="user">User</option>
+                <option value="technician">Technician</option>
+                <option value="admin">Admin</option>
+              </select>
+            </div>
+            <div class="filter-select-wrap">
+              <select id="admin-filter-status" class="form-control form-select">
+                <option value="">All Statuses</option>
+                <option value="active">Active</option>
+                <option value="unconfirmed">Unconfirmed</option>
+                <option value="suspended">Suspended</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Users Table Card -->
+        <div class="card">
+          <div class="card-header">
+            <div>
+              <div class="card-title">User Directory</div>
+              <div class="card-subtitle" id="users-count-subtitle">Loading accounts...</div>
+            </div>
+          </div>
+
+          <div id="users-table-container">
+            <div class="spinner" role="status" aria-label="Loading users"></div>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script>
+  let currentUser = null;
+  let allUsers = [];
+
+  (async () => {
+    currentUser = await App.requireAuth('/login.html');
+    if (!currentUser) return;
+
+    if (currentUser.role !== 'admin') {
+      window.location.href = '/dashboard.html';
+      return;
+    }
+
+    App.buildSidebar('admin');
+    App.buildHeader('Admin Panel', 'System Administration');
+
+    document.getElementById('admin-user-search').addEventListener('input', App.debounce(() => loadUsers(), 300));
+    document.getElementById('admin-filter-role').addEventListener('change', () => loadUsers());
+    document.getElementById('admin-filter-status').addEventListener('change', () => loadUsers());
+
+    loadUsers();
+  })();
+
+  async function loadUsers() {
+    const container = document.getElementById('users-table-container');
+    const search = document.getElementById('admin-user-search').value.trim();
+    const role = document.getElementById('admin-filter-role').value;
+    const status = document.getElementById('admin-filter-status').value;
+
+    const params = new URLSearchParams();
+    if (search) params.set('search', search);
+
+    try {
+      const res = await App.api('GET', `/admin/users?${params.toString()}`);
+      allUsers = res.users || [];
+
+      // Filter locally for role and status
+      let filtered = allUsers;
+      if (role) filtered = filtered.filter(u => u.role === role);
+      if (status) filtered = filtered.filter(u => u.status === status);
+
+      document.getElementById('users-count-subtitle').textContent = `Showing ${filtered.length} of ${allUsers.length} total users`;
+
+      if (filtered.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state p-10">
+            <div class="empty-state-icon">👥</div>
+            <div class="empty-state-title">No users match your criteria</div>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = `
+        <div class="table-wrapper">
+          <table>
+            <thead>
+              <tr>
+                <th>User</th>
+                <th>Department</th>
+                <th>User ID</th>
+                <th>Role</th>
+                <th>Status</th>
+                <th>Joined</th>
+                <th class="text-right">Actions</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${filtered.map(u => `
+                <tr>
+                  <td>
+                    <div class="table-user-cell">
+                      ${App.avatarHtml(u.full_name, u.avatar_color, 'avatar-sm')}
+                      <div>
+                        <div class="font-semibold text-sm">${u.full_name}</div>
+                        <div class="text-xs text-muted">${u.email}</div>
+                      </div>
+                    </div>
+                  </td>
+                  <td>${u.department || '—'}</td>
+                  <td><code class="user-id-code-sm">${u.user_id}</code></td>
+                  <td>${App.roleBadge(u.role)}</td>
+                  <td>
+                    <span class="badge ${u.status === 'active' ? 'badge-resolved' : (u.status === 'suspended' ? 'badge-closed' : 'badge-progress')}">
+                      ${u.status}
+                    </span>
+                  </td>
+                  <td><small class="text-muted">${App.formatDate(u.created_at)}</small></td>
+                  <td class="text-right">
+                    ${u.id !== currentUser.id ? `
+                      <button class="btn btn-secondary btn-sm btn-edit-user btn-manage" data-id="${u.id}">
+                        Manage
+                      </button>
+                    ` : '<span class="text-xs text-muted">(You)</span>'}
+                  </td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </div>
+      `;
+
+      container.querySelectorAll('.btn-edit-user').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const id = parseInt(btn.getAttribute('data-id'));
+          const targetUser = allUsers.find(u => u.id === id);
+          if (targetUser) openManageUserModal(targetUser);
+        });
+      });
+
+    } catch (err) {
+      container.innerHTML = `<div class="alert alert-error p-4">Failed to load users: ${err.message}</div>`;
+    }
+  }
+
+  function openManageUserModal(u) {
+    App.showModal(`
+      <div class="modal-header">
+        <h2 class="modal-title">Manage Account: ${u.full_name}</h2>
+        <button class="modal-close" onclick="App.closeModal()">✕</button>
+      </div>
+      <div class="modal-body p-6">
+        <div class="modal-user-header">
+          ${App.avatarHtml(u.full_name, u.avatar_color, '')}
+          <div>
+            <div class="font-bold text-base">${u.full_name}</div>
+            <div class="text-sm text-secondary">${u.email} · ID: <strong>${u.user_id}</strong></div>
+          </div>
+        </div>
+
+        <form id="edit-user-form">
+          <div class="form-group mb-4">
+            <label class="form-label">System Role</label>
+            <select id="user-role-select" class="form-control form-select">
+              <option value="user" ${u.role === 'user' ? 'selected' : ''}>User (Can submit and track tickets)</option>
+              <option value="technician" ${u.role === 'technician' ? 'selected' : ''}>Technician (Can manage queues &amp; internal notes)</option>
+              <option value="admin" ${u.role === 'admin' ? 'selected' : ''}>Admin (Full system access &amp; reports)</option>
+            </select>
+          </div>
+
+          <div class="form-group mb-6">
+            <label class="form-label">Account Status</label>
+            <select id="user-status-select" class="form-control form-select">
+              <option value="active" ${u.status === 'active' ? 'selected' : ''}>Active (Normal access)</option>
+              <option value="suspended" ${u.status === 'suspended' ? 'selected' : ''}>Suspended (Blocked from logging in)</option>
+              <option value="unconfirmed" ${u.status === 'unconfirmed' ? 'selected' : ''}>Unconfirmed (Pending email validation)</option>
+            </select>
+          </div>
+
+          <div class="flex justify-end gap-2">
+            <button type="button" class="btn btn-secondary" onclick="App.closeModal()">Cancel</button>
+            <button type="submit" class="btn btn-primary" id="btn-save-user">Save Changes</button>
+          </div>
+        </form>
+      </div>
+    `, (modalEl) => {
+      const form = modalEl.querySelector('#edit-user-form');
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const role = modalEl.querySelector('#user-role-select').value;
+        const status = modalEl.querySelector('#user-status-select').value;
+        const btnSave = modalEl.querySelector('#btn-save-user');
+
+        btnSave.disabled = true;
+        try {
+          if (role !== u.role) {
+            await App.api('PATCH', `/admin/users/${u.id}/role`, { role });
+          }
+          if (status !== u.status) {
+            await App.api('PATCH', `/admin/users/${u.id}/status`, { status });
+          }
+          App.toast(`Account updated for ${u.full_name}`, 'success');
+          App.closeModal();
+          loadUsers();
+        } catch (err) {
+          App.toast(err.message, 'error');
+          btnSave.disabled = false;
+        }
+      });
+    });
+  }
+  </script>
+</body>
+</html>

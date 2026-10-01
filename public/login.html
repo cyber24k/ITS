@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="IT Support Portal Login">
+  <title>IT SUPPORT — Login</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div id="toast-container" role="alert" aria-live="polite"></div>
+
+  <main class="auth-page" id="login-page">
+    <div class="auth-card">
+      <div class="auth-logo">
+        <a href="/" class="brand-wordmark">
+          <span class="word-it">IT</span>
+          <span class="word-support">SUPPORT</span>
+        </a>
+        <span class="brand-tagline">Service Desk Portal</span>
+      </div>
+
+      <h1 class="auth-title">Welcome back</h1>
+      <p class="auth-subtitle">Sign in to your IT Support account</p>
+
+      <div id="alert-box" class="hidden" role="alert"></div>
+
+      <form id="login-form" novalidate>
+        <div class="form-group">
+          <label class="form-label" for="user-id">
+            User ID <span class="required" aria-hidden="true">*</span>
+          </label>
+          <input type="text" id="user-id" name="user_id" class="form-control uppercase"
+            placeholder="ITS-123456" autocomplete="username"
+            pattern="ITS-\d{6}" required>
+          <p class="form-hint">Your unique IT Support User ID (format: ITS-XXXXXX)</p>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="password">
+            Password <span class="required" aria-hidden="true">*</span>
+          </label>
+          <div class="form-control-wrap">
+            <input type="password" id="password" name="password" class="form-control"
+              placeholder="Your password" autocomplete="current-password"
+              required>
+            <button type="button" id="toggle-pass" class="toggle-pass-btn"
+              aria-label="Toggle password visibility">Show</button>
+          </div>
+        </div>
+
+        <div class="flex justify-between items-center mb-4 text-sm">
+          <a href="/forgot-user-id.html" class="text-muted">Forgot your User ID?</a>
+          <a href="/forgot-password.html" class="text-muted">Forgot password?</a>
+        </div>
+
+        <button type="submit" class="btn btn-primary w-full btn-lg" id="login-btn">
+          Sign In
+        </button>
+      </form>
+
+      <div class="auth-footer">
+        Don't have an account?
+        <a href="/register.html" class="font-semibold">Create Account</a>
+      </div>
+    </div>
+  </main>
+
+  <script src="/js/app.js"></script>
+  <script>
+    (async () => {
+      // Redirect if already logged in
+      await App.redirectIfAuth('/dashboard.html');
+
+      const form      = document.getElementById('login-form');
+      const alertEl   = document.getElementById('alert-box');
+      const btn       = document.getElementById('login-btn');
+      const toggleBtn = document.getElementById('toggle-pass');
+
+      // Toggle password visibility with clean text
+      toggleBtn.addEventListener('click', function() {
+        const inp = document.getElementById('password');
+        const isPass = inp.type === 'password';
+        inp.type = isPass ? 'text' : 'password';
+        this.textContent = isPass ? 'Hide' : 'Show';
+      });
+
+      // Auto-uppercase user ID
+      document.getElementById('user-id').addEventListener('input', function() {
+        const pos = this.selectionStart;
+        this.value = this.value.toUpperCase();
+        this.setSelectionRange(pos, pos);
+      });
+
+      function showAlert(message, type = 'error') {
+        alertEl.className = `alert alert-${type}`;
+        alertEl.textContent = message;
+        alertEl.classList.remove('hidden');
+      }
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        alertEl.classList.add('hidden');
+
+        const userId   = document.getElementById('user-id').value.trim().toUpperCase();
+        const password = document.getElementById('password').value;
+
+        if (!userId || !password) {
+          showAlert('Please enter your User ID and password.');
+          return;
+        }
+
+        btn.classList.add('loading');
+        btn.disabled = true;
+
+        try {
+          await App.api('POST', '/auth/login', { user_id: userId, password });
+          App.toast('Welcome back!', 'success');
+          window.location.href = '/dashboard.html';
+        } catch (err) {
+          if (err.data?.code === 'UNCONFIRMED') {
+            const emailParam = encodeURIComponent(err.data?.email || '');
+            alertEl.innerHTML = `Account not confirmed. Check your email or
+              <a href="/confirm-email.html?resend=1&email=${emailParam}"
+                 class="font-semibold text-primary underline">resend confirmation email</a>.`;
+            alertEl.className = 'alert alert-warning';
+            alertEl.classList.remove('hidden');
+          } else {
+            showAlert(err.message || 'Login failed. Please try again.');
+          }
+        } finally {
+          btn.classList.remove('loading');
+          btn.disabled = false;
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

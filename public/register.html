@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="IT Support — Create a new account">
+  <title>IT SUPPORT — Create Account</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div id="toast-container" role="alert" aria-live="polite"></div>
+
+  <main class="auth-page" aria-label="Create Account">
+    <div class="auth-card auth-card-wide">
+      <div class="auth-logo">
+        <a href="/" class="brand-wordmark">
+          <span class="word-it">IT</span>
+          <span class="word-support">SUPPORT</span>
+        </a>
+        <span class="brand-tagline">Service Desk Portal</span>
+      </div>
+
+      <h1 class="auth-title">Create Account</h1>
+      <p class="auth-subtitle">Join your company's IT Support portal</p>
+
+      <div id="success-state" class="hidden">
+        <div class="auth-result-box text-center">
+          <span class="badge badge-resolved mb-3" style="font-size: 13px; padding: 6px 14px;">Registration Complete</span>
+          <h2 class="success-heading">Account Created Successfully</h2>
+          <p class="auth-state-desc">
+            Your unique User ID has been generated. Keep this safe — you will need it to log in.
+          </p>
+          <div class="alert alert-info text-left" id="user-id-display"></div>
+          <a href="/login.html" class="btn btn-primary mt-4 w-full">Sign In with User ID</a>
+        </div>
+      </div>
+
+      <div id="form-state">
+        <div id="alert-box" class="hidden" role="alert"></div>
+
+        <form id="register-form" novalidate>
+          <div class="form-group">
+            <label class="form-label" for="full-name">
+              Full Name <span class="required" aria-hidden="true">*</span>
+            </label>
+            <input type="text" id="full-name" name="full_name" class="form-control"
+              placeholder="Jane Smith" autocomplete="name" required aria-required="true">
+          </div>
+
+          <div class="form-row">
+            <div class="form-group">
+              <label class="form-label" for="email">
+                Email Address <span class="required" aria-hidden="true">*</span>
+              </label>
+              <input type="email" id="email" name="email" class="form-control"
+                placeholder="jane@company.com" autocomplete="email" required aria-required="true">
+            </div>
+            <div class="form-group">
+              <label class="form-label" for="department">
+                Department <span class="required" aria-hidden="true">*</span>
+              </label>
+              <select id="department" name="department" class="form-control form-select" required aria-required="true">
+                <option value="">Select department…</option>
+                <option>Engineering</option>
+                <option>Finance</option>
+                <option>HR</option>
+                <option>IT</option>
+                <option>Legal</option>
+                <option>Marketing</option>
+                <option>Operations</option>
+                <option>Sales</option>
+                <option>Other</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="password">
+              Password <span class="required" aria-hidden="true">*</span>
+            </label>
+            <div class="form-control-wrap">
+              <input type="password" id="password" name="password" class="form-control"
+                placeholder="At least 8 chars with letters &amp; numbers"
+                autocomplete="new-password" required aria-required="true">
+              <button type="button" id="toggle-pass" class="toggle-pass-btn"
+                aria-label="Toggle password visibility">Show</button>
+            </div>
+            <div id="password-strength" class="form-hint mt-1"></div>
+          </div>
+
+          <div class="form-group">
+            <label class="form-label" for="confirm-password">
+              Confirm Password <span class="required" aria-hidden="true">*</span>
+            </label>
+            <div class="form-control-wrap">
+              <input type="password" id="confirm-password" name="confirm_password" class="form-control"
+                placeholder="Repeat password" autocomplete="new-password" required aria-required="true">
+            </div>
+            <div id="confirm-match" class="form-hint mt-1"></div>
+          </div>
+
+          <button type="submit" class="btn btn-primary w-full btn-lg" id="register-btn">
+            Create Account
+          </button>
+        </form>
+      </div>
+
+      <div class="auth-footer">
+        Already have an account?
+        <a href="/login.html" class="font-semibold">Sign In</a>
+      </div>
+    </div>
+  </main>
+
+  <script src="/js/app.js"></script>
+  <script>
+    (async () => {
+      await App.redirectIfAuth('/dashboard.html');
+
+      const form       = document.getElementById('register-form');
+      const alertEl    = document.getElementById('alert-box');
+      const btn        = document.getElementById('register-btn');
+      const strengthEl = document.getElementById('password-strength');
+      const matchEl    = document.getElementById('confirm-match');
+      const toggleBtn  = document.getElementById('toggle-pass');
+
+      // Toggle password visibility with clean text
+      toggleBtn.addEventListener('click', function() {
+        const inp = document.getElementById('password');
+        const isPass = inp.type === 'password';
+        inp.type = isPass ? 'text' : 'password';
+        this.textContent = isPass ? 'Hide' : 'Show';
+      });
+
+      // Password strength indicator
+      document.getElementById('password').addEventListener('input', function() {
+        const v = this.value;
+        if (!v) { strengthEl.textContent = ''; return; }
+        const hasLetters = /[A-Za-z]/.test(v);
+        const hasNumbers = /\d/.test(v);
+        const hasSpecial = /[^A-Za-z0-9]/.test(v);
+        const len = v.length;
+
+        let strength, color;
+        if (len < 8 || !hasLetters || !hasNumbers) {
+          strength = 'Weak — needs at least 8 chars with letters & numbers'; color = 'var(--danger)';
+        } else if (len >= 12 && hasSpecial) {
+          strength = 'Strong'; color = 'var(--success)';
+        } else {
+          strength = 'Good'; color = 'var(--warning)';
+        }
+        strengthEl.textContent = strength;
+        strengthEl.style.color = color;
+      });
+
+      // Confirm password match
+      document.getElementById('confirm-password').addEventListener('input', function() {
+        const pass = document.getElementById('password').value;
+        if (this.value === pass) {
+          matchEl.textContent = 'Passwords match';
+          matchEl.style.color = 'var(--success)';
+        } else {
+          matchEl.textContent = 'Passwords do not match';
+          matchEl.style.color = 'var(--danger)';
+        }
+      });
+
+      function showAlert(message, type = 'error') {
+        alertEl.className = `alert alert-${type}`;
+        alertEl.textContent = message;
+        alertEl.classList.remove('hidden');
+      }
+
+      form.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        alertEl.classList.add('hidden');
+
+        const data = {
+          full_name:        document.getElementById('full-name').value.trim(),
+          email:            document.getElementById('email').value.trim(),
+          department:       document.getElementById('department').value,
+          password:         document.getElementById('password').value,
+          confirm_password: document.getElementById('confirm-password').value
+        };
+
+        if (!data.full_name || !data.email || !data.department || !data.password) {
+          showAlert('Please fill in all required fields.');
+          return;
+        }
+
+        btn.classList.add('loading'); btn.disabled = true;
+
+        try {
+          const res = await App.api('POST', '/auth/register', data);
+          // Show success state
+          document.getElementById('form-state').classList.add('hidden');
+          document.getElementById('success-state').classList.remove('hidden');
+          if (res.user_id) {
+            document.getElementById('user-id-display').innerHTML =
+              `<strong>Your User ID:</strong> <span class="user-id-code">${res.user_id}</span><br>` +
+              `<small class="text-muted">Save this — you will need it to log in. It has also been sent to your email.</small>`;
+          }
+        } catch (err) {
+          showAlert(err.message || 'Registration failed. Please try again.');
+        } finally {
+          btn.classList.remove('loading'); btn.disabled = false;
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

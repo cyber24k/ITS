@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="IT SUPPORT — Confirm your email address">
+  <title>IT SUPPORT — Confirm Email</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div id="toast-container" role="alert" aria-live="polite"></div>
+  <main class="auth-page" aria-label="Email Confirmation">
+    <div class="auth-card text-center">
+      <div class="auth-logo">
+        <a href="/" class="brand-wordmark">
+          <span class="word-it">IT</span>
+          <span class="word-support">SUPPORT</span>
+        </a>
+        <span class="brand-tagline">Service Desk Portal</span>
+      </div>
+
+      <div id="loading-state">
+        <div class="spinner" role="status" aria-label="Verifying confirmation link"></div>
+        <p class="text-muted mt-2">Verifying your confirmation link…</p>
+      </div>
+
+      <div id="success-state" class="hidden">
+        <span class="badge badge-resolved mb-3" style="font-size: 13px; padding: 6px 14px;">Confirmed</span>
+        <h1 class="state-heading">Email Confirmed</h1>
+        <p class="auth-state-desc">
+          Your account is now active. You can sign in with your User ID.
+        </p>
+        <a href="/login.html" class="btn btn-primary btn-lg">Go to Login</a>
+      </div>
+
+      <div id="error-state" class="hidden">
+        <span class="badge badge-critical mb-3" style="font-size: 13px; padding: 6px 14px;">Verification Issue</span>
+        <h1 class="state-heading" id="error-title">Link Invalid</h1>
+        <p class="auth-state-desc" id="error-msg">
+          This confirmation link is invalid or has already been used.
+        </p>
+        <div id="resend-section" class="hidden">
+          <form id="resend-form" class="text-left">
+            <div class="form-group">
+              <label class="form-label" for="resend-email">Your email address</label>
+              <input type="email" id="resend-email" class="form-control" placeholder="your@email.com">
+            </div>
+            <button type="submit" class="btn btn-primary w-full" id="resend-btn">Resend Confirmation Email</button>
+          </form>
+        </div>
+        <a href="/login.html" class="btn btn-secondary mt-4 inline-block">Back to Login</a>
+      </div>
+    </div>
+  </main>
+
+  <script src="/js/app.js"></script>
+  <script>
+    (async () => {
+      const params = new URLSearchParams(window.location.search);
+      const token  = params.get('token');
+
+      const loadingEl = document.getElementById('loading-state');
+      const successEl = document.getElementById('success-state');
+      const errorEl   = document.getElementById('error-state');
+
+      function showError(title, msg, showResend = false) {
+        loadingEl.classList.add('hidden');
+        errorEl.classList.remove('hidden');
+        document.getElementById('error-title').textContent = title;
+        document.getElementById('error-msg').textContent   = msg;
+        if (showResend) document.getElementById('resend-section').classList.remove('hidden');
+      }
+
+      if (!token) {
+        if (params.get('resend') || params.get('email')) {
+          showError('Account Confirmation', 'Enter your email address below to receive a new confirmation link.', true);
+          if (params.get('email')) {
+            const input = document.getElementById('resend-email');
+            if (input) input.value = params.get('email');
+          }
+          return;
+        }
+        showError('Invalid Link', 'No confirmation token found in the URL.');
+        return;
+      }
+
+      try {
+        await App.api('GET', `/auth/confirm-email?token=${encodeURIComponent(token)}`);
+        loadingEl.classList.add('hidden');
+        successEl.classList.remove('hidden');
+      } catch (err) {
+        if (err.data?.error === 'expired_token') {
+          showError('Link Expired', 'This confirmation link has expired (valid for 24 hours). Request a new one below.', true);
+        } else {
+          showError('Invalid Link', 'This confirmation link is invalid or has already been used.');
+        }
+      }
+
+      // Resend form
+      document.getElementById('resend-form')?.addEventListener('submit', async (e) => {
+        e.preventDefault();
+        const email = document.getElementById('resend-email').value.trim();
+        const btn   = document.getElementById('resend-btn');
+        btn.classList.add('loading'); btn.disabled = true;
+        try {
+          await App.api('POST', '/auth/resend-confirmation', { email });
+          App.toast('Confirmation email sent. Check your inbox.', 'success');
+        } catch (err) {
+          App.toast(err.message, 'error');
+        } finally {
+          btn.classList.remove('loading'); btn.disabled = false;
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
