@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="ITS — Submit a Support Ticket">
+  <title>ITS — Submit New Ticket</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .kb-suggestions-box {
+      margin-top: var(--space-3);
+      padding: var(--space-4);
+      background: rgba(99, 102, 241, 0.06);
+      border: 1px solid rgba(99, 102, 241, 0.25);
+      border-radius: var(--radius-md);
+      display: none;
+      animation: fadeIn 0.2s ease-in;
+    }
+    .kb-suggestion-item {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: var(--space-2) var(--space-3);
+      background: var(--bg-surface);
+      border-radius: var(--radius-sm);
+      margin-top: var(--space-2);
+      border: 1px solid var(--border-subtle);
+      cursor: pointer;
+      transition: border-color var(--transition-fast), transform var(--transition-fast);
+    }
+    .kb-suggestion-item:hover {
+      border-color: var(--brand-primary);
+      transform: translateX(2px);
+    }
+    .file-dropzone {
+      border: 2px dashed var(--border-default);
+      border-radius: var(--radius-md);
+      padding: var(--space-6);
+      text-align: center;
+      cursor: pointer;
+      transition: border-color var(--transition-fast), background-color var(--transition-fast);
+      position: relative;
+    }
+    .file-dropzone.dragover {
+      border-color: var(--brand-primary);
+      background: rgba(99, 102, 241, 0.05);
+    }
+    .dropzone-title {
+      font-weight: 600;
+      font-size: 14px;
+      margin-bottom: 4px;
+    }
+    .dropzone-hint {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .file-preview-box {
+      display: none;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+    }
+    .kb-header-title {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--brand-primary);
+      margin-bottom: 4px;
+    }
+    .kb-header-sub {
+      font-size: 12px;
+      color: var(--text-secondary);
+      margin-bottom: 8px;
+    }
+  </style>
+</head>
+<body>
+  <div id="toast-container" role="alert" aria-live="polite"></div>
+  <div class="app-layout">
+    <aside class="sidebar" id="sidebar" aria-label="Navigation"></aside>
+    <div class="main-content">
+      <header class="top-header" id="top-header"></header>
+      <main class="page-content" id="page-content">
+
+        <!-- Breadcrumb / Back Link -->
+        <div class="mb-4">
+          <a href="/dashboard.html" class="back-link">
+            Back to Dashboard
+          </a>
+        </div>
+
+        <div class="form-container-md">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <h2 class="card-title">Create Support Request</h2>
+                <p class="card-subtitle">Fill in the details below. Our support team will review and respond according to SLA targets.</p>
+              </div>
+            </div>
+
+            <form id="new-ticket-form" novalidate class="p-6">
+
+              <div id="form-error" class="alert alert-error mb-4 hidden" role="alert"></div>
+
+              <!-- Ticket Title with real-time KB suggestion -->
+              <div class="form-group mb-6">
+                <label for="ticket-title" class="form-label">
+                  Issue Summary / Title <span class="required" aria-hidden="true">*</span>
+                </label>
+                <input
+                  type="text"
+                  id="ticket-title"
+                  name="title"
+                  class="form-control"
+                  placeholder="e.g. Cannot connect to VPN from home network"
+                  required
+                  minlength="5"
+                  autocomplete="off"
+                >
+                <span class="form-hint">Be concise and specific (minimum 5 characters).</span>
+
+                <!-- Real-time Knowledge Base Suggestion Box -->
+                <div id="kb-suggestions" class="kb-suggestions-box" role="region" aria-label="Knowledge Base Suggestions">
+                  <div class="kb-header-title">
+                    <span>Instant Help: Related Articles Found</span>
+                  </div>
+                  <p class="kb-header-sub">
+                    Check if one of these help articles solves your issue right now without waiting for a technician:
+                  </p>
+                  <div id="kb-suggestions-list"></div>
+                </div>
+              </div>
+
+              <!-- Category & Priority Row -->
+              <div class="grid-2 mb-6">
+                <div class="form-group">
+                  <label for="ticket-category" class="form-label">
+                    Category <span class="required" aria-hidden="true">*</span>
+                  </label>
+                  <select id="ticket-category" name="category" class="form-control form-select" required>
+                    <option value="" disabled selected>Select category...</option>
+                    <option value="Hardware">Hardware (Laptop, Monitor, Peripherals)</option>
+                    <option value="Software">Software (OS, Apps, Installation)</option>
+                    <option value="Network">Network (Wi-Fi, VPN, Firewall)</option>
+                    <option value="Account/Access">Account &amp; Access (Permissions, Passwords)</option>
+                    <option value="Other">Other</option>
+                  </select>
+                </div>
+
+                <div class="form-group">
+                  <label for="ticket-priority" class="form-label">
+                    Priority <span class="required" aria-hidden="true">*</span>
+                  </label>
+                  <select id="ticket-priority" name="priority" class="form-control form-select" required>
+                    <option value="Low">Low (SLA: 24h response)</option>
+                    <option value="Medium" selected>Medium (SLA: 8h response)</option>
+                    <option value="High">High (SLA: 4h response)</option>
+                    <option value="Critical">Critical (SLA: 1h response - system outage)</option>
+                  </select>
+                </div>
+              </div>
+
+              <!-- Description -->
+              <div class="form-group mb-6">
+                <label for="ticket-description" class="form-label">
+                  Detailed Description <span class="required" aria-hidden="true">*</span>
+                </label>
+                <textarea
+                  id="ticket-description"
+                  name="description"
+                  class="form-control"
+                  rows="6"
+                  placeholder="Explain what happened, steps to reproduce, error codes, and what you have tried so far..."
+                  required
+                  minlength="10"
+                ></textarea>
+                <span class="form-hint">Provide as much detail as possible to help us resolve this quickly (minimum 10 characters).</span>
+              </div>
+
+              <!-- Attachment / Screenshot Upload -->
+              <div class="form-group mb-8">
+                <label class="form-label">Attachment / Screenshot (Optional)</label>
+                <div class="file-dropzone" id="attachment-dropzone">
+                  <input type="file" id="ticket-attachment" name="attachment" class="hidden" accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.txt,.log">
+                  <div id="dropzone-prompt">
+                    <div class="dropzone-title">Drag &amp; drop a file here, or click to browse</div>
+                    <div class="dropzone-hint">Supported formats: PNG, JPG, PDF, TXT, LOG (Max 10 MB)</div>
+                  </div>
+                  <div id="file-preview" class="file-preview-box">
+                    <span id="file-name" class="font-semibold text-sm"></span>
+                    <button type="button" class="btn btn-secondary btn-sm text-danger" id="btn-remove-file">Remove</button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Submit Buttons -->
+              <div class="flex items-center justify-end gap-3">
+                <a href="/dashboard.html" class="btn btn-secondary">Cancel</a>
+                <button type="submit" class="btn btn-primary min-w-140" id="btn-submit-ticket">
+                  Submit Ticket
+                </button>
+              </div>
+
+            </form>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script>
+  (async () => {
+    const user = await App.requireAuth('/login.html');
+    if (!user) return;
+
+    App.buildSidebar('new-ticket');
+    App.buildHeader('New Ticket', 'Submit Support Request');
+
+    const form = document.getElementById('new-ticket-form');
+    const titleInput = document.getElementById('ticket-title');
+    const kbBox = document.getElementById('kb-suggestions');
+    const kbList = document.getElementById('kb-suggestions-list');
+    const fileInput = document.getElementById('ticket-attachment');
+    const dropzone = document.getElementById('attachment-dropzone');
+    const dropPrompt = document.getElementById('dropzone-prompt');
+    const filePreview = document.getElementById('file-preview');
+    const fileNameSpan = document.getElementById('file-name');
+    const btnRemoveFile = document.getElementById('btn-remove-file');
+    const formError = document.getElementById('form-error');
+    const btnSubmit = document.getElementById('btn-submit-ticket');
+
+    // ─── Real-Time Knowledge Base Suggestions ─────────────────────────────
+    titleInput.addEventListener('input', App.debounce(async () => {
+      const q = titleInput.value.trim();
+      if (q.length < 3) {
+        kbBox.style.display = 'none';
+        return;
+      }
+
+      try {
+        const res = await App.api('GET', `/kb/search?q=${encodeURIComponent(q)}`);
+        const articles = res.articles || [];
+
+        if (articles.length === 0) {
+          kbBox.style.display = 'none';
+          return;
+        }
+
+        kbList.innerHTML = articles.map(a => `
+          <div class="kb-suggestion-item" data-id="${a.id}">
+            <div>
+              <div class="font-semibold text-sm text-primary">${a.title}</div>
+              <small class="text-muted text-xs">Category: ${a.category}</small>
+            </div>
+            <button type="button" class="btn btn-secondary btn-sm text-xs">View Solution</button>
+          </div>
+        `).join('');
+
+        kbBox.style.display = 'block';
+
+        // Clicking article suggestion opens modal
+        kbList.querySelectorAll('.kb-suggestion-item').forEach(item => {
+          item.addEventListener('click', async (e) => {
+            e.preventDefault();
+            const id = item.getAttribute('data-id');
+            await openArticleModal(id);
+          });
+        });
+
+      } catch (_) {
+        kbBox.style.display = 'none';
+      }
+    }, 300));
+
+    // ─── File Upload Dropzone ──────────────────────────────────────────────
+    dropzone.addEventListener('click', (e) => {
+      if (e.target !== btnRemoveFile) fileInput.click();
+    });
+
+    ['dragenter', 'dragover'].forEach(name => {
+      dropzone.addEventListener(name, (e) => {
+        e.preventDefault();
+        dropzone.classList.add('dragover');
+      });
+    });
+
+    ['dragleave', 'drop'].forEach(name => {
+      dropzone.addEventListener(name, (e) => {
+        e.preventDefault();
+        dropzone.classList.remove('dragover');
+      });
+    });
+
+    dropzone.addEventListener('drop', (e) => {
+      if (e.dataTransfer.files.length) {
+        fileInput.files = e.dataTransfer.files;
+        updateFilePreview();
+      }
+    });
+
+    fileInput.addEventListener('change', updateFilePreview);
+
+    btnRemoveFile.addEventListener('click', (e) => {
+      e.stopPropagation();
+      fileInput.value = '';
+      dropPrompt.style.display = 'block';
+      filePreview.style.display = 'none';
+    });
+
+    function updateFilePreview() {
+      if (fileInput.files.length) {
+        const file = fileInput.files[0];
+        fileNameSpan.textContent = `${file.name} (${(file.size / 1024).toFixed(1)} KB)`;
+        dropPrompt.style.display = 'none';
+        filePreview.style.display = 'flex';
+      }
+    }
+
+    // ─── Form Submission ──────────────────────────────────────────────────
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      formError.classList.add('hidden');
+
+      const title = titleInput.value.trim();
+      const description = document.getElementById('ticket-description').value.trim();
+      const category = document.getElementById('ticket-category').value;
+      const priority = document.getElementById('ticket-priority').value;
+
+      if (!title || title.length < 5) {
+        showError('Title must be at least 5 characters long.');
+        titleInput.focus();
+        return;
+      }
+      if (!category) {
+        showError('Please select a category for your ticket.');
+        document.getElementById('ticket-category').focus();
+        return;
+      }
+      if (!description || description.length < 10) {
+        showError('Please provide a detailed description (at least 10 characters).');
+        document.getElementById('ticket-description').focus();
+        return;
+      }
+
+      btnSubmit.disabled = true;
+      btnSubmit.classList.add('loading');
+
+      try {
+        const formData = new FormData();
+        formData.append('title', title);
+        formData.append('description', description);
+        formData.append('category', category);
+        formData.append('priority', priority);
+
+        if (fileInput.files.length) {
+          formData.append('attachment', fileInput.files[0]);
+        }
+
+        const res = await App.api('POST', '/tickets', formData, true);
+        App.toast('Ticket created successfully!', 'success');
+
+        setTimeout(() => {
+          window.location.href = `/ticket-detail.html?id=${res.ticket.ticket_id}`;
+        }, 600);
+
+      } catch (err) {
+        showError(err.message || 'Failed to submit ticket. Please check your input.');
+        btnSubmit.disabled = false;
+        btnSubmit.classList.remove('loading');
+      }
+    });
+
+    function showError(msg) {
+      formError.textContent = msg;
+      formError.classList.remove('hidden');
+      formError.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    // ─── KB Article Modal ─────────────────────────────────────────────────
+    async function openArticleModal(id) {
+      try {
+        const res = await App.api('GET', `/kb/${id}`);
+        const art = res.article;
+        App.showModal(`
+          <div class="modal-header">
+            <div>
+              <span class="badge mb-1">${art.category}</span>
+              <h2 class="modal-title">${art.title}</h2>
+            </div>
+            <button class="modal-close" onclick="App.closeModal()" aria-label="Close">Close</button>
+          </div>
+          <div class="modal-body modal-scroll-body">
+            <div class="pre-wrap-text">${art.body}</div>
+          </div>
+          <div class="modal-footer flex justify-between items-center">
+            <span class="text-xs text-muted">Did this solve your problem?</span>
+            <div class="flex gap-2">
+              <button class="btn btn-secondary btn-sm" onclick="App.closeModal()">No, continue submitting ticket</button>
+              <button class="btn btn-primary btn-sm" onclick="App.closeModal(); window.location.href='/dashboard.html';">Yes, problem solved</button>
+            </div>
+          </div>
+        `);
+      } catch (err) {
+        App.toast('Failed to load article', 'error');
+      }
+    }
+  })();
+  </script>
+</body>
+</html>

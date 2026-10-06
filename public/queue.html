@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="ITS — Technician Ticket Queue">
+  <title>ITS — Ticket Queue</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div id="toast-container" role="alert" aria-live="polite"></div>
+  <div class="app-layout">
+    <aside class="sidebar" id="sidebar" aria-label="Navigation"></aside>
+    <div class="main-content">
+      <header class="top-header" id="top-header"></header>
+      <main class="page-content" id="page-content">
+
+        <!-- Page Header -->
+        <div class="flex items-center justify-between mb-6 flex-wrap gap-4">
+          <div>
+            <h2 class="page-title">Support Ticket Queue</h2>
+            <p class="text-secondary">Triage incoming issues, monitor SLA commitments, and claim tickets.</p>
+          </div>
+          <div class="flex gap-2">
+            <button class="btn btn-secondary btn-sm" id="btn-refresh-queue" title="Refresh queue">
+              Refresh
+            </button>
+            <a href="/new-ticket.html" class="btn btn-primary btn-sm">
+              Log Ticket
+            </a>
+          </div>
+        </div>
+
+        <!-- Queue Quick Tabs -->
+        <div class="queue-tabs-nav">
+          <button class="btn btn-primary btn-sm queue-tab" data-tab="unassigned" id="tab-unassigned">
+            Unassigned Queue <span class="badge queue-badge-white" id="badge-count-unassigned">0</span>
+          </button>
+          <button class="btn btn-secondary btn-sm queue-tab" data-tab="my-tickets" id="tab-my-tickets">
+            My Tickets <span class="badge queue-badge-my" id="badge-count-my">0</span>
+          </button>
+          <button class="btn btn-secondary btn-sm queue-tab" data-tab="sla-risk" id="tab-sla-risk">
+            SLA Warnings <span class="badge queue-badge-sla" id="badge-count-sla">0</span>
+          </button>
+          <button class="btn btn-secondary btn-sm queue-tab" data-tab="all-open" id="tab-all-open">
+            All Open
+          </button>
+          <button class="btn btn-secondary btn-sm queue-tab" data-tab="all" id="tab-all">
+            All Tickets (History)
+          </button>
+        </div>
+
+        <!-- Filter Toolbar -->
+        <div class="card mb-6 p-4">
+          <div class="flex items-center gap-3 flex-wrap">
+            <!-- Search -->
+            <div class="filter-search-wrap">
+              <input type="text" id="queue-search" class="form-control search-box-input" placeholder="Search ID, title, submitter, or issue...">
+            </div>
+
+            <!-- Priority -->
+            <div class="filter-select-sm">
+              <select id="queue-priority" class="form-control form-select">
+                <option value="">All Priorities</option>
+                <option value="Critical">Critical</option>
+                <option value="High">High</option>
+                <option value="Medium">Medium</option>
+                <option value="Low">Low</option>
+              </select>
+            </div>
+
+            <!-- Category -->
+            <div class="filter-select-wrap">
+              <select id="queue-category" class="form-control form-select">
+                <option value="">All Categories</option>
+                <option value="Hardware">Hardware</option>
+                <option value="Software">Software</option>
+                <option value="Network">Network</option>
+                <option value="Account/Access">Account/Access</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+
+            <!-- Status (if viewing all) -->
+            <div class="filter-select-sm" id="status-filter-wrapper">
+              <select id="queue-status" class="form-control form-select">
+                <option value="">All Statuses</option>
+                <option value="New">New</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Waiting on User">Waiting on User</option>
+                <option value="Resolved">Resolved</option>
+                <option value="Closed">Closed</option>
+              </select>
+            </div>
+
+            <!-- Sort -->
+            <div class="filter-select-sm">
+              <select id="queue-sort" class="form-control form-select">
+                <option value="sla">SLA Deadline</option>
+                <option value="priority">Priority First</option>
+                <option value="newest">Newest First</option>
+                <option value="updated">Recently Updated</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
+        <!-- Queue Items Container -->
+        <div id="queue-items-container">
+          <div class="spinner" role="status" aria-label="Loading queue"></div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script>
+  let activeTab = 'unassigned';
+  let currentUser = null;
+  let techniciansList = [];
+
+  (async () => {
+    currentUser = await App.requireAuth('/login.html');
+    if (!currentUser) return;
+
+    if (currentUser.role === 'user') {
+      window.location.href = '/tickets.html';
+      return;
+    }
+
+    App.buildSidebar('queue');
+    App.buildHeader('Ticket Queue', 'Triage & Resolution');
+
+    // Fetch technicians list for quick assign
+    try {
+      const techRes = await App.api('GET', '/tickets/meta/technicians');
+      techniciansList = techRes.technicians || [];
+    } catch (_) {}
+
+    // Attach Tab Handlers
+    document.querySelectorAll('.queue-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        document.querySelectorAll('.queue-tab').forEach(b => {
+          b.className = 'btn btn-secondary btn-sm queue-tab';
+        });
+        btn.className = 'btn btn-primary btn-sm queue-tab';
+        activeTab = btn.getAttribute('data-tab');
+        loadQueue();
+      });
+    });
+
+    // Toolbar Listeners
+    document.getElementById('queue-search').addEventListener('input', App.debounce(() => loadQueue(), 300));
+    ['queue-priority', 'queue-category', 'queue-status', 'queue-sort'].forEach(id => {
+      document.getElementById(id).addEventListener('change', () => loadQueue());
+    });
+
+    document.getElementById('btn-refresh-queue').addEventListener('click', () => {
+      loadQueue();
+      App.toast('Queue refreshed', 'info', 2000);
+    });
+
+    loadQueue();
+  })();
+
+  async function loadQueue() {
+    const container = document.getElementById('queue-items-container');
+    container.innerHTML = '<div class="spinner" role="status" aria-label="Loading queue"></div>';
+
+    const search   = document.getElementById('queue-search').value.trim();
+    const priority = document.getElementById('queue-priority').value;
+    const category = document.getElementById('queue-category').value;
+    const status   = document.getElementById('queue-status').value;
+    const sort     = document.getElementById('queue-sort').value;
+
+    const params = new URLSearchParams({ limit: '100', sort: sort });
+    if (search)   params.set('search', search);
+    if (priority) params.set('priority', priority);
+    if (category) params.set('category', category);
+
+    // Apply Tab-specific filters
+    if (activeTab === 'unassigned') {
+      params.set('assignee', 'unassigned');
+      params.set('status', 'New');
+    } else if (activeTab === 'my-tickets') {
+      params.set('assignee', currentUser.id);
+    } else if (activeTab === 'all-open') {
+      // client side filter for open statuses if not specified
+    } else if (activeTab === 'sla-risk') {
+      // will be filtered client-side for SLA breach / warning
+    } else {
+      if (status) params.set('status', status);
+    }
+
+    try {
+      const res = await App.api('GET', `/tickets?${params.toString()}`);
+      let tickets = res.tickets || [];
+      const now = new Date();
+
+      if (activeTab === 'my-tickets') {
+        tickets = tickets.filter(t => !['Resolved', 'Closed'].includes(t.status));
+      } else if (activeTab === 'all-open') {
+        tickets = tickets.filter(t => !['Resolved', 'Closed'].includes(t.status));
+      } else if (activeTab === 'sla-risk') {
+        tickets = tickets.filter(t => {
+          if (!t.sla_deadline || ['Resolved', 'Closed'].includes(t.status)) return false;
+          const diff = new Date(t.sla_deadline) - now;
+          return diff < 4 * 3600000; // less than 4h or overdue
+        });
+      }
+
+      // Update badge counts from background query
+      updateQueueBadges();
+
+      if (tickets.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state card p-10">
+            <div class="empty-state-title">No tickets in this view</div>
+            <div class="empty-state-desc">The queue is completely clear for the selected filters. Great job!</div>
+          </div>
+        `;
+        return;
+      }
+
+      container.innerHTML = `
+        <div class="flex flex-col gap-3">
+          ${tickets.map(t => renderQueueItem(t, now)).join('')}
+        </div>
+      `;
+
+      // Attach inline Claim / Assign handlers
+      document.querySelectorAll('.btn-claim-ticket').forEach(btn => {
+        btn.addEventListener('click', async (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const tId = btn.getAttribute('data-id');
+          await assignTicket(tId, currentUser.id);
+        });
+      });
+
+    } catch (err) {
+      container.innerHTML = `<div class="alert alert-error">Failed to load queue: ${err.message}</div>`;
+    }
+  }
+
+  function renderQueueItem(t, now) {
+    const isOverdue = t.sla_deadline && new Date(t.sla_deadline) < now && !['Resolved', 'Closed'].includes(t.status);
+
+    return `
+      <div class="ticket-card ${t.priority === 'Critical' ? 'critical' : ''} ${isOverdue ? 'overdue' : ''}">
+        <div class="queue-card-wrap">
+          
+          <!-- Left details -->
+          <div class="queue-card-left">
+            <div class="ticket-card-header mb-2">
+              <div class="flex items-center gap-2 flex-wrap">
+                <span class="ticket-id">${t.ticket_id}</span>
+                ${App.statusBadge(t.status)}
+                ${App.priorityBadge(t.priority)}
+                ${App.slaBadge(t.sla_deadline, t.status)}
+              </div>
+              <span class="text-xs text-muted">
+                Submitted ${App.timeAgo(t.created_at)} by <strong>${t.submitter_name}</strong> (${t.submitter_user_id})
+              </span>
+            </div>
+
+            <a href="/ticket-detail.html?id=${t.ticket_id}" class="block">
+              <h3 class="ticket-title mb-2">${t.title}</h3>
+              <p class="text-sm text-secondary mb-3 line-clamp-2">
+                ${t.description}
+              </p>
+            </a>
+
+            <div class="ticket-meta">
+              <span>${t.category}</span>
+              <span>·</span>
+              <span>Assigned: ${t.assignee_name ? `<strong>${t.assignee_name}</strong>` : '<span class="text-muted">Unassigned</span>'}</span>
+              ${t.attachment ? '<span>·</span><span>Attachment</span>' : ''}
+            </div>
+          </div>
+
+          <!-- Right actions -->
+          <div class="queue-card-actions">
+            <a href="/ticket-detail.html?id=${t.ticket_id}" class="btn btn-secondary btn-sm">
+              Open Ticket
+            </a>
+            ${!t.assignee_id ? `
+              <button class="btn btn-primary btn-sm btn-claim-ticket" data-id="${t.ticket_id}">
+                Claim Ticket
+              </button>
+            ` : ''}
+          </div>
+
+        </div>
+      </div>
+    `;
+  }
+
+  async function assignTicket(ticketId, techId) {
+    try {
+      await App.api('PATCH', `/tickets/${ticketId}`, { assignee_id: techId });
+      App.toast(`Ticket ${ticketId} assigned to you!`, 'success');
+      loadQueue();
+    } catch (err) {
+      App.toast(`Failed to assign: ${err.message}`, 'error');
+    }
+  }
+
+  async function updateQueueBadges() {
+    try {
+      const [unassignedRes, myRes] = await Promise.all([
+        App.api('GET', '/tickets?assignee=unassigned&status=New&limit=1'),
+        App.api('GET', `/tickets?limit=100`)
+      ]);
+
+      const unassignedCount = unassignedRes.total || 0;
+      const myCount = (myRes.tickets || []).filter(t => t.assignee_id == currentUser.id && !['Resolved', 'Closed'].includes(t.status)).length;
+      
+      const now = new Date();
+      const slaRiskCount = (myRes.tickets || []).filter(t => {
+        if (!t.sla_deadline || ['Resolved', 'Closed'].includes(t.status)) return false;
+        return (new Date(t.sla_deadline) - now) < 4 * 3600000;
+      }).length;
+
+      const elU = document.getElementById('badge-count-unassigned');
+      const elM = document.getElementById('badge-count-my');
+      const elS = document.getElementById('badge-count-sla');
+
+      if (elU) elU.textContent = unassignedCount;
+      if (elM) elM.textContent = myCount;
+      if (elS) elS.textContent = slaRiskCount;
+    } catch (_) {}
+  }
+  </script>
+</body>
+</html>

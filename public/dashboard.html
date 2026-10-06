@@ -1,0 +1,423 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="ITS — Dashboard">
+  <title>ITS — Dashboard</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div id="toast-container" role="alert" aria-live="polite"></div>
+  <div class="app-layout">
+    <aside class="sidebar" id="sidebar" aria-label="Navigation"></aside>
+    <div class="main-content">
+      <header class="top-header" id="top-header"></header>
+      <main class="page-content" id="page-content">
+        <div class="spinner" role="status" aria-label="Loading dashboard"></div>
+      </main>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.2/dist/chart.umd.min.js"></script>
+  <script>
+  (async () => {
+    const user = await App.requireAuth('/login.html');
+    if (!user) return;
+
+    App.buildSidebar('dashboard');
+    App.buildHeader('Dashboard');
+
+    const page = document.getElementById('page-content');
+
+    if (user.role === 'user') {
+      await renderUserDashboard(page, user);
+    } else if (user.role === 'technician') {
+      await renderTechDashboard(page, user);
+    } else {
+      await renderAdminDashboard(page, user);
+    }
+  })();
+
+  // ─── User Dashboard ────────────────────────────────────────────────────────
+  async function renderUserDashboard(page, user) {
+    try {
+      const [openRes, recentRes] = await Promise.all([
+        App.api('GET', '/tickets?status=New&limit=10'),
+        App.api('GET', '/tickets?status=Resolved&limit=5')
+      ]);
+
+      const allRes = await App.api('GET', '/tickets?limit=100');
+      const all    = allRes.tickets || [];
+
+      const open     = all.filter(t => !['Resolved','Closed'].includes(t.status));
+      const resolved = all.filter(t => t.status === 'Resolved' || t.status === 'Closed');
+
+      page.innerHTML = `
+        <div class="mb-8">
+          <h2 class="page-title">
+            Welcome back, ${user.full_name.split(' ')[0]}
+          </h2>
+          <p class="text-secondary">Here's an overview of your support requests.</p>
+        </div>
+
+        <div class="grid-4 mb-8">
+          <div class="stat-card">
+            <div class="stat-label">Total Tickets</div>
+            <div class="stat-value">${all.length}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Open</div>
+            <div class="stat-value text-brand">${open.length}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Resolved</div>
+            <div class="stat-value text-success">${resolved.length}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Pending Reply</div>
+            <div class="stat-value text-warning">${all.filter(t=>t.status==='Waiting on User').length}</div>
+          </div>
+        </div>
+
+        <div class="grid-2 mb-8">
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Open Tickets</div>
+                <div class="card-subtitle">${open.length} active request${open.length !== 1 ? 's' : ''}</div>
+              </div>
+              <a href="/tickets.html" class="btn btn-secondary btn-sm">View All</a>
+            </div>
+            ${open.length === 0
+              ? `<div class="empty-state p-6">
+                  <div class="empty-state-title">All clear!</div>
+                  <div class="empty-state-desc">No open tickets.</div>
+                </div>`
+              : open.slice(0,5).map(t => ticketRow(t)).join('')
+            }
+          </div>
+
+          <div class="card">
+            <div class="card-header">
+              <div>
+                <div class="card-title">Recently Resolved</div>
+                <div class="card-subtitle">Last ${Math.min(resolved.length,5)} resolved</div>
+              </div>
+            </div>
+            ${resolved.length === 0
+              ? `<div class="empty-state p-6">
+                  <div class="empty-state-title">No resolved tickets yet</div>
+                </div>`
+              : resolved.slice(0,5).map(t => ticketRow(t)).join('')
+            }
+          </div>
+        </div>
+
+        <div class="text-center">
+          <a href="/new-ticket.html" class="btn btn-primary btn-lg">
+            Submit New Support Request
+          </a>
+        </div>
+      `;
+    } catch (err) {
+      page.innerHTML = `<div class="alert alert-error">Failed to load dashboard: ${err.message}</div>`;
+    }
+  }
+
+  // ─── Tech Dashboard ────────────────────────────────────────────────────────
+  async function renderTechDashboard(page, user) {
+    try {
+      const [unassignedRes, myRes, statsRes] = await Promise.all([
+        App.api('GET', '/tickets?assignee=unassigned&status=New&limit=20'),
+        App.api('GET', `/tickets?limit=20`),
+        App.api('GET', '/tickets/stats/summary')
+      ]);
+
+      const unassigned = unassignedRes.tickets || [];
+      const myTickets  = (myRes.tickets || []).filter(t => t.assignee_id == App.getUser().id && !['Resolved','Closed'].includes(t.status));
+      const stats      = statsRes;
+
+      const now      = new Date();
+      const slaWarn  = (myRes.tickets || []).filter(t => {
+        if (!t.sla_deadline || ['Resolved','Closed'].includes(t.status)) return false;
+        const diff = new Date(t.sla_deadline) - now;
+        return diff < 3600000 * 4;  // within 4 hours
+      });
+
+      page.innerHTML = `
+        <div class="mb-8">
+          <h2 class="page-title">Technician Dashboard</h2>
+          <p class="text-secondary">Manage your ticket queue and SLA performance.</p>
+        </div>
+
+        <div class="grid-4 mb-8">
+          <div class="stat-card">
+            <div class="stat-label">Unassigned</div>
+            <div class="stat-value text-brand">${unassigned.length}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">My Open</div>
+            <div class="stat-value">${myTickets.length}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">SLA Warnings</div>
+            <div class="stat-value ${slaWarn.length > 0 ? 'text-danger' : 'text-success'}">${slaWarn.length}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">SLA Breached</div>
+            <div class="stat-value text-danger">${stats.slaBreached || 0}</div>
+          </div>
+        </div>
+
+        ${slaWarn.length > 0 ? `
+        <div class="card mb-6 card-alert-danger">
+          <div class="card-header">
+            <div class="card-title text-danger">SLA Warnings</div>
+          </div>
+          ${slaWarn.map(t => ticketRow(t)).join('')}
+        </div>` : ''}
+
+        <div class="grid-2">
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">Unassigned Queue</div>
+              <a href="/queue.html" class="btn btn-secondary btn-sm">Full Queue</a>
+            </div>
+            ${unassigned.length === 0
+              ? `<div class="empty-state p-6">
+                  <div class="empty-state-title">Queue is empty!</div>
+                </div>`
+              : unassigned.slice(0,5).map(t => ticketRow(t)).join('')
+            }
+          </div>
+          <div class="card">
+            <div class="card-header">
+              <div class="card-title">My Tickets</div>
+              <a href="/queue.html" class="btn btn-secondary btn-sm">View All</a>
+            </div>
+            ${myTickets.length === 0
+              ? `<div class="empty-state p-6">
+                  <div class="empty-state-title">No assigned tickets</div>
+                </div>`
+              : myTickets.slice(0,5).map(t => ticketRow(t)).join('')
+            }
+          </div>
+        </div>
+      `;
+    } catch (err) {
+      page.innerHTML = `<div class="alert alert-error">Failed to load dashboard: ${err.message}</div>`;
+    }
+  }
+
+  // ─── Admin Dashboard ───────────────────────────────────────────────────────
+  async function renderAdminDashboard(page, user) {
+    try {
+      const [statsRes, reportsRes] = await Promise.all([
+        App.api('GET', '/tickets/stats/summary'),
+        App.api('GET', '/admin/reports')
+      ]);
+      const stats   = statsRes;
+      const reports = reportsRes;
+
+      const totalTickets = (reports.byStatus || []).reduce((s, r) => s + r.count, 0);
+
+      page.innerHTML = `
+        <div class="mb-8">
+          <h2 class="page-title">Admin Dashboard</h2>
+          <p class="text-secondary">System-wide overview and performance metrics.</p>
+        </div>
+
+        <div class="grid-4 mb-8">
+          <div class="stat-card">
+            <div class="stat-label">Total Tickets</div>
+            <div class="stat-value">${totalTickets}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Avg Resolution</div>
+            <div class="stat-value">${stats.avgResolutionHours ? stats.avgResolutionHours.toFixed(1) + 'h' : '—'}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">Avg Satisfaction</div>
+            <div class="stat-value">${stats.avgRating ? stats.avgRating.toFixed(1) + '/5' : '—'}</div>
+          </div>
+          <div class="stat-card">
+            <div class="stat-label">SLA Breached</div>
+            <div class="stat-value ${stats.slaBreached > 0 ? 'text-danger' : 'text-success'}">${stats.slaBreached || 0}</div>
+          </div>
+        </div>
+
+        <div class="grid-3 mb-6">
+          <div class="card">
+            <div class="card-header"><div class="card-title">By Status</div></div>
+            <canvas id="chart-status" height="200"></canvas>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">By Category</div></div>
+            <canvas id="chart-category" height="200"></canvas>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">By Priority</div></div>
+            <canvas id="chart-priority" height="200"></canvas>
+          </div>
+        </div>
+
+        <div class="grid-2-1 mb-6">
+          <div class="card">
+            <div class="card-header"><div class="card-title">Tickets (Last 30 Days)</div></div>
+            <canvas id="chart-timeline" height="120"></canvas>
+          </div>
+          <div class="card">
+            <div class="card-header"><div class="card-title">Satisfaction Scores</div></div>
+            <canvas id="chart-satisfaction" height="120"></canvas>
+          </div>
+        </div>
+
+        <div class="card mb-6">
+          <div class="card-header">
+            <div class="card-title">Top Technicians</div>
+            <a href="/admin.html" class="btn btn-secondary btn-sm">Manage Users</a>
+          </div>
+          ${(reports.topTechs || []).length === 0
+            ? `<div class="empty-state p-6"><div class="empty-state-title">No resolved tickets yet</div></div>`
+            : `<div class="table-wrapper"><table>
+                <thead><tr><th>Technician</th><th>Resolved</th><th>Avg Rating</th></tr></thead>
+                <tbody>${reports.topTechs.map(t => `
+                  <tr>
+                    <td><strong>${t.full_name}</strong> <small class="text-muted">${t.user_id}</small></td>
+                    <td>${t.resolved}</td>
+                    <td>${t.avg_rating ? (t.avg_rating.toFixed(1) + '/5') : '—'}</td>
+                  </tr>`).join('')}
+                </tbody></table></div>`
+          }
+        </div>
+
+        <div class="card">
+          <div class="card-header"><div class="card-title">Recent Tickets</div><a href="/queue.html" class="btn btn-secondary btn-sm">View All</a></div>
+          ${(stats.recentTickets || []).map(t => `
+            <a class="ticket-card mb-3 block" href="/ticket-detail.html?id=${t.ticket_id}">
+              <div class="flex items-center gap-3">
+                <span class="ticket-id">${t.ticket_id}</span>
+                ${App.statusBadge(t.status)}
+                ${App.priorityBadge(t.priority)}
+              </div>
+              <div class="ticket-title">${t.title}</div>
+              <div class="ticket-meta">${t.submitter_name} · ${App.timeAgo(t.created_at)}</div>
+            </a>`).join('')}
+        </div>
+      `;
+
+      // Build charts
+      buildCharts(reports);
+    } catch (err) {
+      page.innerHTML = `<div class="alert alert-error">Failed to load dashboard: ${err.message}</div>`;
+    }
+  }
+
+  function buildCharts(reports) {
+    const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+    const textColor = isDark ? '#94a3b8' : '#6b7280';
+    const gridColor = isDark ? 'rgba(255,255,255,.05)' : 'rgba(0,0,0,.05)';
+    const defaults  = { responsive: true, plugins: { legend: { labels: { color: textColor, font: { family: 'Inter' } } } } };
+
+    // Status chart
+    const statusCtx = document.getElementById('chart-status');
+    if (statusCtx && reports.byStatus?.length) {
+      const statusColors = {
+        'New': '#6366f1', 'In Progress': '#f59e0b',
+        'Waiting on User': '#8b5cf6', 'Resolved': '#10b981', 'Closed': '#6b7280'
+      };
+      new Chart(statusCtx, {
+        type: 'doughnut',
+        data: {
+          labels: reports.byStatus.map(r => r.status),
+          datasets: [{ data: reports.byStatus.map(r => r.count), backgroundColor: reports.byStatus.map(r => statusColors[r.status] || '#6366f1'), borderWidth: 0 }]
+        },
+        options: { ...defaults, cutout: '65%' }
+      });
+    }
+
+    // Category chart
+    const catCtx = document.getElementById('chart-category');
+    if (catCtx && reports.byCategory?.length) {
+      new Chart(catCtx, {
+        type: 'bar',
+        data: {
+          labels: reports.byCategory.map(r => r.category),
+          datasets: [{ data: reports.byCategory.map(r => r.count), backgroundColor: '#6366f1', borderRadius: 6 }]
+        },
+        options: { ...defaults, scales: { y: { ticks: { color: textColor }, grid: { color: gridColor } }, x: { ticks: { color: textColor }, grid: { display: false } } }, plugins: { ...defaults.plugins, legend: { display: false } } }
+      });
+    }
+
+    // Priority chart
+    const priCtx = document.getElementById('chart-priority');
+    if (priCtx && reports.byPriority?.length) {
+      const priColors = { Low: '#10b981', Medium: '#f59e0b', High: '#ef4444', Critical: '#dc2626' };
+      new Chart(priCtx, {
+        type: 'pie',
+        data: {
+          labels: reports.byPriority.map(r => r.priority),
+          datasets: [{ data: reports.byPriority.map(r => r.count), backgroundColor: reports.byPriority.map(r => priColors[r.priority] || '#6366f1'), borderWidth: 0 }]
+        },
+        options: { ...defaults }
+      });
+    }
+
+    // Timeline chart
+    const tlCtx = document.getElementById('chart-timeline');
+    if (tlCtx && reports.ticketsOverTime?.length) {
+      new Chart(tlCtx, {
+        type: 'line',
+        data: {
+          labels: reports.ticketsOverTime.map(r => r.day),
+          datasets: [{
+            label: 'Tickets',
+            data: reports.ticketsOverTime.map(r => r.count),
+            borderColor: '#6366f1', backgroundColor: 'rgba(99,102,241,.1)',
+            fill: true, tension: 0.4, borderWidth: 2
+          }]
+        },
+        options: { ...defaults, scales: { y: { ticks: { color: textColor }, grid: { color: gridColor } }, x: { ticks: { color: textColor, maxTicksLimit: 7 }, grid: { display: false } } }, plugins: { ...defaults.plugins, legend: { display: false } } }
+      });
+    }
+
+    // Satisfaction chart
+    const satCtx = document.getElementById('chart-satisfaction');
+    if (satCtx && reports.satisfaction?.length) {
+      new Chart(satCtx, {
+        type: 'bar',
+        data: {
+          labels: reports.satisfaction.map(r => `${r.stars}/5`),
+          datasets: [{ data: reports.satisfaction.map(r => r.count), backgroundColor: '#f59e0b', borderRadius: 6 }]
+        },
+        options: { ...defaults, scales: { y: { ticks: { color: textColor }, grid: { color: gridColor } }, x: { ticks: { color: textColor }, grid: { display: false } } }, plugins: { ...defaults.plugins, legend: { display: false } } }
+      });
+    }
+  }
+
+  function ticketRow(t) {
+    const now     = new Date();
+    const overdue = t.sla_deadline && new Date(t.sla_deadline) < now && !['Resolved','Closed'].includes(t.status);
+    return `
+      <a class="ticket-card mb-3 block ${t.priority === 'Critical' ? 'critical' : ''} ${overdue ? 'overdue' : ''}"
+         href="/ticket-detail.html?id=${t.ticket_id}">
+        <div class="ticket-card-header">
+          <span class="ticket-id">${t.ticket_id}</span>
+          ${App.statusBadge(t.status)}
+          ${App.priorityBadge(t.priority)}
+          ${App.slaBadge(t.sla_deadline, t.status)}
+        </div>
+        <div class="ticket-title">${t.title}</div>
+        <div class="ticket-meta">
+          <span>${t.category}</span>
+          <span>·</span>
+          <span>${App.timeAgo(t.created_at)}</span>
+          ${t.assignee_name ? `<span>·</span><span>${t.assignee_name}</span>` : ''}
+        </div>
+      </a>`;
+  }
+  </script>
+</body>
+</html>

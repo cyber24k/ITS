@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="ITS — Ticket Details &amp; Activity">
+  <title>ITS — Ticket Details</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    .detail-grid {
+      display: grid;
+      grid-template-columns: 1fr 340px;
+      gap: var(--space-6);
+      align-items: start;
+    }
+    @media (max-width: 900px) {
+      .detail-grid { grid-template-columns: 1fr; }
+    }
+    .timeline-tab-btn {
+      padding: var(--space-3) var(--space-5);
+      font-weight: 600;
+      font-size: 14px;
+      background: none;
+      border: none;
+      cursor: pointer;
+      color: var(--text-secondary);
+      border-bottom: 2px solid transparent;
+      transition: color var(--transition-fast), border-color var(--transition-fast);
+    }
+    .timeline-tab-btn.active {
+      color: var(--brand-primary);
+      border-bottom-color: var(--brand-primary);
+    }
+    .comment-item {
+      padding: var(--space-4);
+      border-radius: var(--radius-md);
+      margin-bottom: var(--space-4);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      transition: border-color var(--transition-fast);
+    }
+    .comment-item.internal {
+      background: rgba(245, 158, 11, 0.05);
+      border-color: rgba(245, 158, 11, 0.35);
+    }
+    .rating-option-btn {
+      min-width: 42px;
+      padding: 8px 12px;
+      background: var(--bg-surface);
+      border: 1px solid var(--border-default);
+      border-radius: var(--radius-md);
+      cursor: pointer;
+      color: var(--text-secondary);
+      font-size: 14px;
+      font-weight: 600;
+      transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast);
+    }
+    .rating-option-btn.active, .rating-option-btn:hover {
+      color: var(--brand-primary);
+      border-color: var(--brand-primary);
+      background: var(--bg-elevated);
+    }
+    .sla-box {
+      border-radius: var(--radius-md);
+      padding: var(--space-4);
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      margin-bottom: var(--space-4);
+    }
+    .sla-box.overdue {
+      border-left: 4px solid var(--danger);
+      background: rgba(239, 68, 68, 0.05);
+    }
+    .sla-box.warning {
+      border-left: 4px solid var(--warning);
+    }
+    .sla-box.ok {
+      border-left: 4px solid var(--success);
+    }
+    .detail-back-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-4); flex-wrap: wrap; gap: var(--space-2); }
+    .ticket-id-lg { font-size: 18px; }
+    .ticket-main-title { font-size: 24px; font-weight: 700; margin-bottom: var(--space-4); line-height: 1.3; }
+    .section-divider { border-top: 1px solid var(--border-subtle); padding-top: var(--space-4); margin-top: var(--space-4); }
+    .section-label { font-size: 13px; font-weight: 600; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; margin-bottom: var(--space-2); }
+    .ticket-desc-text { font-size: 15px; line-height: 1.7; white-space: pre-wrap; color: var(--text-primary); }
+    .tab-nav-bar { display: flex; border-bottom: 1px solid var(--border-subtle); padding: 0 var(--space-4); }
+    .sla-label { font-size: 12px; font-weight: 700; text-transform: uppercase; color: var(--text-muted); letter-spacing: 0.5px; margin-bottom: 6px; }
+    .sla-display { font-size: 20px; font-weight: 700; margin-bottom: 4px; }
+    .sla-sub { font-size: 12px; color: var(--text-secondary); }
+    .info-group { margin-bottom: var(--space-3); }
+    .info-label { font-size: 12px; color: var(--text-muted); text-transform: uppercase; }
+    .info-val { font-size: 13px; color: var(--text-secondary); margin-top: 2px; }
+    .info-val-strong { font-size: 14px; font-weight: 600; }
+    .info-val-user { display: flex; align-items: center; gap: 8px; margin-top: 4px; }
+    .badge-internal { background: #fef3c7; color: #92400e; }
+    .comment-meta-bar { display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-2); }
+    .comment-meta-left { display: flex; align-items: center; gap: 8px; }
+    .comment-text { font-size: 14px; line-height: 1.6; white-space: pre-wrap; color: var(--text-primary); padding-left: 36px; }
+    .rating-score { font-size: 16px; font-weight: 700; color: var(--text-primary); }
+    .rating-scale { display: flex; gap: 4px; margin-bottom: var(--space-4); }
+    .internal-note-label { display: inline-flex; align-items: center; gap: 8px; cursor: pointer; font-size: 13px; font-weight: 600; color: var(--warning); }
+    .timeline-row { display: flex; gap: var(--space-3); margin-bottom: var(--space-4); }
+    .card-pad { padding: var(--space-4) var(--space-6); }
+    .card-pad-lg { padding: var(--space-6); }
+    .form-heading { font-size: 15px; font-weight: 600; margin-bottom: var(--space-3); }
+    .category-badge-pill { background: var(--bg-elevated); color: var(--text-secondary); }
+  </style>
+</head>
+<body>
+  <div id="toast-container" role="alert" aria-live="polite"></div>
+  <div class="app-layout">
+    <aside class="sidebar" id="sidebar" aria-label="Navigation"></aside>
+    <div class="main-content">
+      <header class="top-header" id="top-header"></header>
+      <main class="page-content" id="page-content">
+
+        <!-- Back & Status Banner -->
+        <div class="detail-back-bar">
+          <a href="#" id="back-link" class="back-link">
+            Back to Tickets
+          </a>
+          <div id="ticket-quick-badges" class="flex items-center gap-2"></div>
+        </div>
+
+        <div id="ticket-loading" class="spinner" role="status" aria-label="Loading ticket"></div>
+
+        <div id="ticket-container" class="hidden">
+          <div class="detail-grid">
+
+            <!-- ─── Main Column: Title, Description, Timeline, Add Comment ─── -->
+            <div>
+              <!-- Ticket Header Card -->
+              <div class="card mb-6">
+                <div class="card-pad-lg">
+                  <div class="flex items-center gap-3 mb-2 flex-wrap">
+                    <span id="t-id" class="ticket-id ticket-id-lg"></span>
+                    <span id="t-status-badge"></span>
+                    <span id="t-priority-badge"></span>
+                    <span id="t-category-badge" class="badge category-badge-pill"></span>
+                  </div>
+
+                  <h1 id="t-title" class="ticket-main-title"></h1>
+
+                  <div class="section-divider">
+                    <h2 class="section-label">Description</h2>
+                    <div id="t-description" class="ticket-desc-text"></div>
+                  </div>
+
+                  <!-- Attachment link if present -->
+                  <div id="t-attachment-wrapper" class="hidden section-divider">
+                    <h2 class="section-label">Attachment</h2>
+                    <a id="t-attachment-link" href="#" target="_blank" class="btn btn-secondary btn-sm inline-block">
+                      Download / View Attachment
+                    </a>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Rating Card (shown if resolved) -->
+              <div id="rating-section" class="card mb-6 hidden">
+                <div class="card-header border-b">
+                  <div class="card-title flex items-center gap-2">
+                    Ticket Resolution &amp; Satisfaction Rating
+                  </div>
+                </div>
+                <div id="rating-content" class="card-pad-lg"></div>
+              </div>
+
+              <!-- Activity Timeline Card -->
+              <div class="card">
+                <div class="tab-nav-bar">
+                  <button class="timeline-tab-btn active" id="tab-comments">
+                    Conversation (<span id="count-comments">0</span>)
+                  </button>
+                  <button class="timeline-tab-btn" id="tab-history">
+                    Audit History (<span id="count-history">0</span>)
+                  </button>
+                </div>
+
+                <!-- Comments & Notes Tab Pane -->
+                <div id="pane-comments" class="card-pad-lg">
+                  <div id="comments-list"></div>
+
+                  <!-- Add Comment Form -->
+                  <div class="section-divider">
+                    <h2 class="form-heading" id="add-comment-heading">
+                      Add a Reply
+                    </h2>
+
+                    <!-- Internal Note checkbox (tech/admin only) -->
+                    <div id="internal-note-toggle-wrapper" class="mb-3 hidden">
+                      <label class="internal-note-label">
+                        <input type="checkbox" id="comment-is-internal">
+                        <span>Internal Note (Only visible to Technicians &amp; Admins)</span>
+                      </label>
+                    </div>
+
+                    <form id="comment-form">
+                      <div class="form-group mb-4">
+                        <textarea
+                          id="comment-body"
+                          class="form-control"
+                          rows="4"
+                          placeholder="Type your message, update, or troubleshooting note..."
+                          required
+                          minlength="2"
+                        ></textarea>
+                      </div>
+                      <div class="flex justify-end">
+                        <button type="submit" class="btn btn-primary" id="btn-post-comment">
+                          Send Reply
+                        </button>
+                      </div>
+                    </form>
+                  </div>
+                </div>
+
+                <!-- History Tab Pane -->
+                <div id="pane-history" class="card-pad-lg hidden">
+                  <div id="history-list" class="timeline"></div>
+                </div>
+
+              </div>
+            </div>
+
+            <!-- ─── Sidebar Column: Metadata, SLA, Tech Controls ─── -->
+            <div>
+
+              <!-- SLA Countdown Box -->
+              <div id="sla-countdown-card" class="sla-box">
+                <div class="sla-label">
+                  SLA Target &amp; Countdown
+                </div>
+                <div id="sla-countdown-display" class="sla-display"></div>
+                <div id="sla-deadline-text" class="sla-sub"></div>
+              </div>
+
+              <!-- Ticket Info Card -->
+              <div class="card mb-6">
+                <div class="card-header">
+                  <div class="card-title">Ticket Information</div>
+                </div>
+                <div class="card-pad">
+                  <div class="info-group">
+                    <div class="info-label">Submitter</div>
+                    <div class="info-val-user">
+                      <div id="sub-avatar"></div>
+                      <div>
+                        <div id="sub-name" class="info-val-strong"></div>
+                        <div id="sub-id" class="text-xs text-muted"></div>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div class="info-group">
+                    <div class="info-label">Department</div>
+                    <div id="sub-dept" class="info-val font-semibold">—</div>
+                  </div>
+
+                  <div class="info-group">
+                    <div class="info-label">Created</div>
+                    <div id="t-created" class="info-val"></div>
+                  </div>
+
+                  <div class="info-group">
+                    <div class="info-label">Last Updated</div>
+                    <div id="t-updated" class="info-val"></div>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Technician Controls Card (shown only for Tech/Admin) -->
+              <div id="tech-controls-card" class="card mb-6 hidden">
+                <div class="card-header">
+                  <div class="card-title">Staff Management</div>
+                </div>
+                <div class="card-pad-lg">
+                  
+                  <!-- Change Status -->
+                  <div class="form-group mb-4">
+                    <label for="ctrl-status" class="form-label">Update Status</label>
+                    <select id="ctrl-status" class="form-control form-select">
+                      <option value="New">New</option>
+                      <option value="In Progress">In Progress</option>
+                      <option value="Waiting on User">Waiting on User</option>
+                      <option value="Resolved">Resolved</option>
+                      <option value="Closed">Closed</option>
+                    </select>
+                  </div>
+
+                  <!-- Change Priority -->
+                  <div class="form-group mb-4">
+                    <label for="ctrl-priority" class="form-label">Update Priority</label>
+                    <select id="ctrl-priority" class="form-control form-select">
+                      <option value="Low">Low</option>
+                      <option value="Medium">Medium</option>
+                      <option value="High">High</option>
+                      <option value="Critical">Critical</option>
+                    </select>
+                  </div>
+
+                  <!-- Assign / Reassign -->
+                  <div class="form-group mb-6">
+                    <label for="ctrl-assignee" class="form-label">Assigned Technician</label>
+                    <select id="ctrl-assignee" class="form-control form-select">
+                      <option value="">Unassigned</option>
+                    </select>
+                  </div>
+
+                  <button type="button" class="btn btn-primary btn-sm w-full" id="btn-save-controls">
+                    Save Ticket Changes
+                  </button>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script>
+  let currentUser = null;
+  let currentTicket = null;
+  let allComments = [];
+  let allHistory = [];
+  let technicians = [];
+  let ticketId = new URLSearchParams(window.location.search).get('id');
+
+  (async () => {
+    currentUser = await App.requireAuth('/login.html');
+    if (!currentUser) return;
+
+    if (!ticketId) {
+      window.location.href = '/dashboard.html';
+      return;
+    }
+
+    App.buildSidebar(currentUser.role === 'user' ? 'tickets' : 'queue');
+    App.buildHeader('Ticket Details', ticketId);
+
+    // Set back link
+    document.getElementById('back-link').href = currentUser.role === 'user' ? '/tickets.html' : '/queue.html';
+
+    // Tabs toggle
+    const tabComments = document.getElementById('tab-comments');
+    const tabHistory = document.getElementById('tab-history');
+    const paneComments = document.getElementById('pane-comments');
+    const paneHistory = document.getElementById('pane-history');
+
+    tabComments.addEventListener('click', () => {
+      tabComments.classList.add('active');
+      tabHistory.classList.remove('active');
+      paneComments.classList.remove('hidden');
+      paneHistory.classList.add('hidden');
+    });
+
+    tabHistory.addEventListener('click', () => {
+      tabHistory.classList.add('active');
+      tabComments.classList.remove('active');
+      paneComments.classList.add('hidden');
+      paneHistory.classList.remove('hidden');
+    });
+
+    // Tech controls setup
+    if (currentUser.role === 'technician' || currentUser.role === 'admin') {
+      document.getElementById('tech-controls-card').classList.remove('hidden');
+      document.getElementById('internal-note-toggle-wrapper').classList.remove('hidden');
+
+      try {
+        const tRes = await App.api('GET', '/tickets/meta/technicians');
+        technicians = tRes.technicians || [];
+        const sel = document.getElementById('ctrl-assignee');
+        technicians.forEach(tech => {
+          const opt = document.createElement('option');
+          opt.value = tech.id;
+          opt.textContent = `${tech.full_name} (${tech.user_id})`;
+          sel.appendChild(opt);
+        });
+      } catch (_) {}
+
+      document.getElementById('btn-save-controls').addEventListener('click', saveTicketControls);
+    }
+
+    // Comment form
+    document.getElementById('comment-form').addEventListener('submit', handleAddComment);
+
+    loadTicketData();
+  })();
+
+  async function loadTicketData() {
+    try {
+      const data = await App.api('GET', `/tickets/${ticketId}`);
+      currentTicket = data.ticket;
+      allComments = data.comments || [];
+      allHistory = data.history || [];
+
+      document.getElementById('ticket-loading').classList.add('hidden');
+      document.getElementById('ticket-container').classList.remove('hidden');
+
+      renderTicketHeader();
+      renderSlaBox();
+      renderRatingSection();
+      renderComments();
+      renderHistory();
+      syncControls();
+
+    } catch (err) {
+      document.getElementById('ticket-loading').innerHTML = `
+        <div class="alert alert-error form-container-md mt-6">
+          <h3 class="font-bold mb-2">Error loading ticket</h3>
+          <p>${err.message}</p>
+          <a href="/dashboard.html" class="btn btn-secondary btn-sm mt-4 inline-block">Return to Dashboard</a>
+        </div>
+      `;
+    }
+  }
+
+  function renderTicketHeader() {
+    const t = currentTicket;
+    document.getElementById('t-id').textContent = t.ticket_id;
+    document.getElementById('t-title').textContent = t.title;
+    document.getElementById('t-description').textContent = t.description;
+
+    document.getElementById('t-status-badge').innerHTML = App.statusBadge(t.status);
+    document.getElementById('t-priority-badge').innerHTML = App.priorityBadge(t.priority);
+    document.getElementById('t-category-badge').textContent = t.category;
+
+    document.getElementById('ticket-quick-badges').innerHTML = `
+      ${App.statusBadge(t.status)}
+      ${App.priorityBadge(t.priority)}
+    `;
+
+    // Submitter info
+    document.getElementById('sub-name').textContent = t.submitter_name;
+    document.getElementById('sub-id').textContent = `${t.submitter_user_id} · ${t.submitter_email}`;
+    document.getElementById('sub-dept').textContent = t.submitter_department || '—';
+    document.getElementById('sub-avatar').innerHTML = App.avatarHtml(t.submitter_name, t.submitter_color, 'avatar-sm');
+
+    document.getElementById('t-created').textContent = App.formatDateTime(t.created_at);
+    document.getElementById('t-updated').textContent = App.formatDateTime(t.updated_at || t.created_at);
+
+    // Attachment
+    if (t.attachment) {
+      const wrap = document.getElementById('t-attachment-wrapper');
+      const link = document.getElementById('t-attachment-link');
+      wrap.classList.remove('hidden');
+      link.href = t.attachment;
+      link.setAttribute('download', '');
+    }
+  }
+
+  function renderSlaBox() {
+    const t = currentTicket;
+    const box = document.getElementById('sla-countdown-card');
+    const disp = document.getElementById('sla-countdown-display');
+    const sub = document.getElementById('sla-deadline-text');
+
+    if (['Resolved', 'Closed'].includes(t.status)) {
+      box.className = 'sla-box ok';
+      disp.textContent = `Completed (${t.status})`;
+      disp.className = 'sla-display text-success';
+      sub.textContent = t.resolved_at ? `Resolved at ${App.formatDateTime(t.resolved_at)}` : '';
+      return;
+    }
+
+    if (!t.sla_deadline) {
+      box.classList.add('hidden');
+      return;
+    }
+
+    const now = new Date();
+    const deadline = new Date(t.sla_deadline);
+    const diff = deadline - now;
+
+    if (diff < 0) {
+      const overdueHours = Math.floor(Math.abs(diff) / 3600000);
+      const overdueMins = Math.floor((Math.abs(diff) % 3600000) / 60000);
+      box.className = 'sla-box overdue';
+      disp.textContent = `OVERDUE (${overdueHours}h ${overdueMins}m)`;
+      disp.className = 'sla-display text-danger';
+      sub.textContent = `Target was: ${App.formatDateTime(t.sla_deadline)}`;
+    } else {
+      const h = Math.floor(diff / 3600000);
+      const m = Math.floor((diff % 3600000) / 60000);
+      if (diff < 3600000 * 2) {
+        box.className = 'sla-box warning';
+        disp.className = 'sla-display text-warning';
+      } else {
+        box.className = 'sla-box ok';
+        disp.className = 'sla-display text-success';
+      }
+      disp.textContent = `${h}h ${m}m remaining`;
+      sub.textContent = `SLA Target: ${App.formatDateTime(t.sla_deadline)}`;
+    }
+  }
+
+  function renderRatingSection() {
+    const t = currentTicket;
+    const sec = document.getElementById('rating-section');
+    const content = document.getElementById('rating-content');
+
+    if (!['Resolved', 'Closed'].includes(t.status)) {
+      sec.classList.add('hidden');
+      return;
+    }
+
+    sec.classList.remove('hidden');
+
+    // If rated already
+    if (t.rating_stars) {
+      content.innerHTML = `
+        <div class="flex items-center gap-3">
+          <div class="rating-score">${t.rating_stars} out of 5</div>
+          <div>
+            <div class="font-semibold">Rated ${t.rating_stars} out of 5 stars</div>
+            ${t.rating_comment ? `<p class="text-sm text-secondary mt-1">"${t.rating_comment}"</p>` : ''}
+          </div>
+        </div>
+      `;
+      return;
+    }
+
+    // Submitter can rate
+    if (t.submitter_id === currentUser.id) {
+      content.innerHTML = `
+        <p class="text-sm text-secondary mb-3">
+          How satisfied were you with the support provided for this request?
+        </p>
+        <div class="rating-scale" id="rating-scale">
+          <button type="button" class="rating-option-btn" data-val="1" aria-label="Rate 1 out of 5">1</button>
+          <button type="button" class="rating-option-btn" data-val="2" aria-label="Rate 2 out of 5">2</button>
+          <button type="button" class="rating-option-btn" data-val="3" aria-label="Rate 3 out of 5">3</button>
+          <button type="button" class="rating-option-btn" data-val="4" aria-label="Rate 4 out of 5">4</button>
+          <button type="button" class="rating-option-btn" data-val="5" aria-label="Rate 5 out of 5">5</button>
+        </div>
+        <div class="form-group mb-4">
+          <textarea id="rating-comment-input" class="form-control" rows="2" placeholder="Optional comments on how we can improve..."></textarea>
+        </div>
+        <button type="button" class="btn btn-primary btn-sm" id="btn-submit-rating">
+          Submit Rating
+        </button>
+      `;
+
+      let selectedStars = 0;
+      const ratingButtons = content.querySelectorAll('.rating-option-btn');
+      ratingButtons.forEach(btn => {
+        btn.addEventListener('click', () => {
+          selectedStars = parseInt(btn.getAttribute('data-val'));
+          ratingButtons.forEach(b => {
+            const val = parseInt(b.getAttribute('data-val'));
+            b.classList.toggle('active', val <= selectedStars);
+          });
+        });
+      });
+
+      document.getElementById('btn-submit-rating').addEventListener('click', async () => {
+        if (!selectedStars) {
+          App.toast('Please select a rating from 1 to 5.', 'warning');
+          return;
+        }
+        const comment = document.getElementById('rating-comment-input').value.trim();
+        try {
+          await App.api('POST', `/tickets/${t.ticket_id}/rate`, { stars: selectedStars, comment });
+          App.toast('Thank you for rating!', 'success');
+          loadTicketData();
+        } catch (err) {
+          App.toast(err.message, 'error');
+        }
+      });
+
+    } else {
+      content.innerHTML = `
+        <div class="text-muted text-sm">
+          Awaiting customer rating from ${t.submitter_name}.
+        </div>
+      `;
+    }
+  }
+
+  function renderComments() {
+    const list = document.getElementById('comments-list');
+    document.getElementById('count-comments').textContent = allComments.length;
+
+    if (allComments.length === 0) {
+      list.innerHTML = `
+        <div class="empty-state p-6">
+          <div class="empty-state-title">No comments yet</div>
+          <div class="empty-state-desc">Start the conversation below.</div>
+        </div>
+      `;
+      return;
+    }
+
+    list.innerHTML = allComments.map(c => `
+      <div class="comment-item ${c.is_internal ? 'internal' : ''}">
+        <div class="comment-meta-bar">
+          <div class="comment-meta-left">
+            ${App.avatarHtml(c.author_name, c.author_color, 'avatar-xs')}
+            <span class="font-semibold text-sm">${c.author_name}</span>
+            ${App.roleBadge(c.author_role)}
+            ${c.is_internal ? '<span class="badge badge-internal">Internal Staff Note</span>' : ''}
+          </div>
+          <span class="text-xs text-muted">${App.formatDateTime(c.created_at)}</span>
+        </div>
+        <div class="comment-text">
+          ${c.body}
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function renderHistory() {
+    const list = document.getElementById('history-list');
+    document.getElementById('count-history').textContent = allHistory.length;
+
+    if (allHistory.length === 0) {
+      list.innerHTML = '<div class="text-muted text-sm">No history recorded.</div>';
+      return;
+    }
+
+    list.innerHTML = allHistory.map(h => `
+      <div class="timeline-row">
+
+        <div>
+          <div class="text-sm font-semibold">
+            ${h.actor_name || 'System'}: <span class="text-secondary font-normal">${h.action}</span>
+          </div>
+          ${h.new_value ? `<div class="text-xs text-primary mt-1">${h.new_value}</div>` : ''}
+          <div class="text-xs text-muted mt-1">${App.formatDateTime(h.created_at)}</div>
+        </div>
+      </div>
+    `).join('');
+  }
+
+  function syncControls() {
+    if (currentUser.role === 'user') return;
+    const t = currentTicket;
+    document.getElementById('ctrl-status').value = t.status;
+    document.getElementById('ctrl-priority').value = t.priority;
+    document.getElementById('ctrl-assignee').value = t.assignee_id || '';
+  }
+
+  async function handleAddComment(e) {
+    e.preventDefault();
+    const bodyInput = document.getElementById('comment-body');
+    const isInternalInput = document.getElementById('comment-is-internal');
+    const btnSubmit = document.getElementById('btn-post-comment');
+
+    const body = bodyInput.value.trim();
+    if (!body || body.length < 2) {
+      App.toast('Comment must be at least 2 characters', 'warning');
+      return;
+    }
+
+    const isInternal = isInternalInput ? isInternalInput.checked : false;
+
+    btnSubmit.disabled = true;
+    try {
+      await App.api('POST', `/tickets/${ticketId}/comments`, {
+        body: body,
+        is_internal: isInternal
+      });
+      bodyInput.value = '';
+      if (isInternalInput) isInternalInput.checked = false;
+      App.toast(isInternal ? 'Internal note added' : 'Reply sent', 'success');
+      loadTicketData();
+    } catch (err) {
+      App.toast(`Failed to add reply: ${err.message}`, 'error');
+    } finally {
+      btnSubmit.disabled = false;
+    }
+  }
+
+  async function saveTicketControls() {
+    const newStatus = document.getElementById('ctrl-status').value;
+    const newPriority = document.getElementById('ctrl-priority').value;
+    const newAssignee = document.getElementById('ctrl-assignee').value;
+    const btn = document.getElementById('btn-save-controls');
+
+    btn.disabled = true;
+    btn.textContent = 'Saving...';
+
+    try {
+      await App.api('PATCH', `/tickets/${ticketId}`, {
+        status: newStatus,
+        priority: newPriority,
+        assignee_id: newAssignee ? parseInt(newAssignee) : null
+      });
+
+      App.toast('Ticket updated successfully', 'success');
+      loadTicketData();
+    } catch (err) {
+      App.toast(`Failed to update ticket: ${err.message}`, 'error');
+    } finally {
+      btn.disabled = false;
+      btn.textContent = 'Save Ticket Changes';
+    }
+  }
+  </script>
+</body>
+</html>

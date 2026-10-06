@@ -1,0 +1,263 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="ITS — My Tickets">
+  <title>ITS — My Tickets</title>
+  <link rel="stylesheet" href="/css/style.css">
+</head>
+<body>
+  <div id="toast-container" role="alert" aria-live="polite"></div>
+  <div class="app-layout">
+    <aside class="sidebar" id="sidebar" aria-label="Navigation"></aside>
+    <div class="main-content">
+      <header class="top-header" id="top-header"></header>
+      <main class="page-content" id="page-content">
+        
+        <!-- Header & Action Row -->
+        <div class="flex items-center justify-between mb-6 flex-wrap gap-4">
+          <div>
+            <h2 class="page-title">My Support Tickets</h2>
+            <p class="text-secondary">Track, search, and manage your submitted support requests.</p>
+          </div>
+          <a href="/new-ticket.html" class="btn btn-primary" id="btn-create-ticket">
+            New Ticket
+          </a>
+        </div>
+
+        <!-- Filter & Search Toolbar -->
+        <div class="card mb-6 p-4">
+          <div class="flex items-center gap-3 flex-wrap">
+            <!-- Search -->
+            <div class="filter-search-wrap">
+              <input type="text" id="search-input" class="form-control search-box-input" placeholder="Search by Ticket ID, Title, or description...">
+            </div>
+
+            <!-- Status Filter -->
+            <div class="filter-select-wrap">
+              <select id="filter-status" class="form-control form-select">
+                <option value="">All Statuses</option>
+                <option value="New">New</option>
+                <option value="In Progress">In Progress</option>
+                <option value="Waiting on User">Waiting on User</option>
+                <option value="Resolved">Resolved</option>
+                <option value="Closed">Closed</option>
+              </select>
+            </div>
+
+            <!-- Priority Filter -->
+            <div class="filter-select-sm">
+              <select id="filter-priority" class="form-control form-select">
+                <option value="">All Priorities</option>
+                <option value="Low">Low</option>
+                <option value="Medium">Medium</option>
+                <option value="High">High</option>
+                <option value="Critical">Critical</option>
+              </select>
+            </div>
+
+            <!-- Category Filter -->
+            <div class="filter-select-md">
+              <select id="filter-category" class="form-control form-select">
+                <option value="">All Categories</option>
+                <option value="Hardware">Hardware</option>
+                <option value="Software">Software</option>
+                <option value="Network">Network</option>
+                <option value="Account/Access">Account/Access</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+
+            <!-- Sort By -->
+            <div class="filter-select-wrap">
+              <select id="filter-sort" class="form-control form-select">
+                <option value="newest">Newest First</option>
+                <option value="oldest">Oldest First</option>
+                <option value="priority">Priority</option>
+                <option value="updated">Recently Updated</option>
+                <option value="sla">SLA Deadline</option>
+              </select>
+            </div>
+
+            <!-- Reset Filters -->
+            <button class="btn btn-secondary btn-sm" id="btn-reset-filters" title="Reset all filters">
+              Reset
+            </button>
+          </div>
+        </div>
+
+        <!-- Ticket Results Container -->
+        <div id="tickets-container">
+          <div class="spinner" role="status" aria-label="Loading tickets"></div>
+        </div>
+
+        <!-- Pagination -->
+        <div id="pagination-container" class="pagination-bar hidden">
+          <div id="pagination-info" class="text-secondary text-sm"></div>
+          <div class="flex gap-2">
+            <button class="btn btn-secondary btn-sm" id="btn-prev-page" disabled>Previous</button>
+            <button class="btn btn-secondary btn-sm" id="btn-next-page">Next</button>
+          </div>
+        </div>
+
+      </main>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script>
+  let currentPage = 0;
+  const limit = 15;
+
+  (async () => {
+    const user = await App.requireAuth('/login.html');
+    if (!user) return;
+
+    App.buildSidebar('tickets');
+    App.buildHeader('My Tickets', 'Support Requests');
+
+    // Attach listeners
+    document.getElementById('search-input').addEventListener('input', App.debounce(() => {
+      currentPage = 0;
+      loadTickets();
+    }, 300));
+
+    ['filter-status', 'filter-priority', 'filter-category', 'filter-sort'].forEach(id => {
+      document.getElementById(id).addEventListener('change', () => {
+        currentPage = 0;
+        loadTickets();
+      });
+    });
+
+    document.getElementById('btn-reset-filters').addEventListener('click', () => {
+      document.getElementById('search-input').value = '';
+      document.getElementById('filter-status').value = '';
+      document.getElementById('filter-priority').value = '';
+      document.getElementById('filter-category').value = '';
+      document.getElementById('filter-sort').value = 'newest';
+      currentPage = 0;
+      loadTickets();
+    });
+
+    document.getElementById('btn-prev-page').addEventListener('click', () => {
+      if (currentPage > 0) {
+        currentPage--;
+        loadTickets();
+      }
+    });
+
+    document.getElementById('btn-next-page').addEventListener('click', () => {
+      currentPage++;
+      loadTickets();
+    });
+
+    loadTickets();
+  })();
+
+  async function loadTickets() {
+    const container = document.getElementById('tickets-container');
+    const pagination = document.getElementById('pagination-container');
+    const pageInfo = document.getElementById('pagination-info');
+    const btnPrev = document.getElementById('btn-prev-page');
+    const btnNext = document.getElementById('btn-next-page');
+
+    container.innerHTML = '<div class="spinner" role="status" aria-label="Loading tickets"></div>';
+
+    const search   = document.getElementById('search-input').value.trim();
+    const status   = document.getElementById('filter-status').value;
+    const priority = document.getElementById('filter-priority').value;
+    const category = document.getElementById('filter-category').value;
+    const sort     = document.getElementById('filter-sort').value;
+
+    const params = new URLSearchParams({
+      limit: limit,
+      offset: currentPage * limit,
+      sort: sort
+    });
+    if (search)   params.set('search', search);
+    if (status)   params.set('status', status);
+    if (priority) params.set('priority', priority);
+    if (category) params.set('category', category);
+
+    try {
+      const res = await App.api('GET', `/tickets?${params.toString()}`);
+      const tickets = res.tickets || [];
+      const total   = res.total || 0;
+
+      if (tickets.length === 0) {
+        container.innerHTML = `
+          <div class="empty-state card p-10">
+            <div class="empty-state-title">No tickets found</div>
+            <div class="empty-state-desc">
+              ${search || status || priority || category
+                ? 'Try adjusting your search criteria or clearing filters.'
+                : "You haven't submitted any support requests yet."}
+            </div>
+            <a href="/new-ticket.html" class="btn btn-primary mt-4">
+              Submit a New Ticket
+            </a>
+          </div>
+        `;
+        pagination.classList.add('hidden');
+        return;
+      }
+
+      // Render tickets list
+      container.innerHTML = `
+        <div class="flex flex-col gap-3">
+          ${tickets.map(t => {
+            const now = new Date();
+            const overdue = t.sla_deadline && new Date(t.sla_deadline) < now && !['Resolved', 'Closed'].includes(t.status);
+            return `
+              <a class="ticket-card block ${t.priority === 'Critical' ? 'critical' : ''} ${overdue ? 'overdue' : ''}"
+                 href="/ticket-detail.html?id=${t.ticket_id}">
+                <div class="ticket-card-header">
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span class="ticket-id">${t.ticket_id}</span>
+                    ${App.statusBadge(t.status)}
+                    ${App.priorityBadge(t.priority)}
+                    ${App.slaBadge(t.sla_deadline, t.status)}
+                  </div>
+                  <div class="text-xs text-muted">
+                    Created ${App.formatDateTime(t.created_at)}
+                  </div>
+                </div>
+
+                <div class="ticket-title mt-2 mb-2">
+                  ${t.title}
+                </div>
+
+                <div class="ticket-meta">
+                  <span>${t.category}</span>
+                  <span>·</span>
+                  <span>Updated ${App.timeAgo(t.updated_at || t.created_at)}</span>
+                  ${t.assignee_name ? `<span>·</span><span>Tech: ${t.assignee_name}</span>` : '<span>·</span><span class="badge badge-unassigned">Unassigned</span>'}
+                  ${t.rating_stars ? `<span>·</span><span>Rated ${t.rating_stars}/5</span>` : ''}
+                </div>
+              </a>
+            `;
+          }).join('')}
+        </div>
+      `;
+
+      // Pagination
+      const start = currentPage * limit + 1;
+      const end = Math.min((currentPage + 1) * limit, total);
+      pageInfo.textContent = `Showing ${start}-${end} of ${total} tickets`;
+      btnPrev.disabled = currentPage === 0;
+      btnNext.disabled = end >= total;
+      if (total > limit) {
+        pagination.classList.remove('hidden');
+      } else {
+        pagination.classList.add('hidden');
+      }
+
+    } catch (err) {
+      container.innerHTML = `<div class="alert alert-error">Failed to load tickets: ${err.message}</div>`;
+      pagination.classList.add('hidden');
+    }
+  }
+  </script>
+</body>
+</html>

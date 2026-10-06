@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="ITS — Modern IT Support Ticketing System for fast issue resolution, SLA tracking, and self-service support.">
+  <title>ITS — IT Support Ticketing System</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <style>
+    :root {
+      --brand-primary: #123d7a;
+      --brand-secondary: #153d65;
+      --brand-accent: #dbe8ff;
+      --brand-gradient: linear-gradient(135deg, #103a72 0%, #1f4f8b 100%);
+      --bg-base: #f3f6fb;
+      --bg-surface: #ffffff;
+      --bg-elevated: #edf3ff;
+      --bg-overlay: rgba(255,255,255,0.88);
+      --border-subtle: #e3eaf5;
+      --border-default: #d8e2f1;
+      --text-primary: #122234;
+      --text-secondary: #4f5f77;
+      --text-muted: #7d8ca2;
+    }
+
+    .hero-section {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      background:
+        radial-gradient(circle at top left, rgba(18,61,122,0.12), transparent 28%),
+        linear-gradient(180deg, #f7f9fc 0%, #eef4ff 100%);
+    }
+
+    .landing-nav {
+      height: 72px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0 40px;
+      border-bottom: 1px solid var(--border-subtle);
+      background: rgba(255,255,255,0.82);
+      backdrop-filter: blur(10px);
+      position: sticky;
+      top: 0;
+      z-index: 50;
+    }
+
+    .landing-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: inherit;
+    }
+
+    .landing-brand-text {
+      font-weight: 800;
+      font-size: 20px;
+      letter-spacing: -0.03em;
+      color: var(--text-primary);
+    }
+
+    .landing-nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .landing-hero {
+      max-width: 1100px;
+      width: 100%;
+      margin: 72px auto 32px;
+      text-align: center;
+      padding: 0 24px;
+    }
+
+    .hero-badge {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px 18px;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--brand-primary);
+      background: rgba(18,61,122,0.08);
+      border: 1px solid rgba(18,61,122,0.12);
+      border-radius: 999px;
+      margin-bottom: 28px;
+    }
+
+    .hero-title {
+      font-size: clamp(38px, 6vw, 68px);
+      line-height: 1.06;
+      letter-spacing: -0.06em;
+      margin-bottom: 20px;
+      color: var(--text-primary);
+    }
+
+    .hero-title span {
+      color: var(--brand-primary);
+    }
+
+    .hero-desc {
+      max-width: 740px;
+      margin: 0 auto 36px;
+      font-size: clamp(17px, 2vw, 20px);
+      color: var(--text-secondary);
+      line-height: 1.7;
+    }
+
+    .hero-actions {
+      display: flex;
+      justify-content: center;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 42px;
+    }
+
+    .hero-highlights {
+      display: flex;
+      gap: 22px;
+      justify-content: center;
+      flex-wrap: wrap;
+      color: var(--text-secondary);
+      font-size: 14px;
+      margin-bottom: 52px;
+    }
+
+    .hero-highlights span {
+      position: relative;
+      padding-left: 0;
+    }
+
+    .features-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 22px;
+      max-width: 1100px;
+      margin: 0 auto 80px;
+      padding: 0 24px;
+    }
+
+    .feature-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 18px;
+      padding: 28px 24px;
+      box-shadow: 0 10px 24px rgba(15, 23, 42, 0.03);
+      transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
+    }
+
+    .feature-card:hover {
+      transform: translateY(-3px);
+      box-shadow: 0 18px 38px rgba(15, 23, 42, 0.08);
+      border-color: rgba(18,61,122,0.22);
+    }
+
+    .feature-title {
+      font-size: 20px;
+      margin-bottom: 10px;
+      color: var(--text-primary);
+      font-weight: 700;
+    }
+
+    .feature-desc {
+      color: var(--text-secondary);
+      line-height: 1.7;
+      font-size: 14px;
+    }
+
+    .landing-footer {
+      margin-top: auto;
+      border-top: 1px solid var(--border-subtle);
+      padding: 28px 40px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      color: var(--text-muted);
+      font-size: 13px;
+      background: rgba(255,255,255,0.46);
+    }
+
+    .landing-footer-links {
+      display: flex;
+      gap: 20px;
+      flex-wrap: wrap;
+    }
+
+    @media (max-width: 740px) {
+      .landing-nav {
+        padding: 0 18px;
+      }
+
+      .landing-nav-actions {
+        gap: 8px;
+      }
+
+      .landing-hero {
+        margin-top: 52px;
+      }
+
+      .landing-footer {
+        padding: 22px 18px;
+      }
+    }
+  </style>
+</head>
+<body>
+  <div id="toast-container" role="alert" aria-live="polite"></div>
+  <div class="hero-section">
+    <!-- Navbar -->
+    <header class="landing-nav">
+      <a href="/" class="landing-brand">
+        <div class="landing-brand-text">ITS Support</div>
+      </a>
+      <div class="landing-nav-actions">
+        <button class="theme-toggle" id="landing-theme-toggle" aria-label="Toggle theme" title="Toggle dark/light mode">
+          <span class="theme-toggle-label">Dark mode</span>
+        </button>
+        <a href="/login.html" class="btn btn-secondary btn-sm" id="btn-nav-login">Sign In</a>
+        <a href="/register.html" class="btn btn-primary btn-sm" id="btn-nav-register">Create Account</a>
+      </div>
+    </header>
+
+    <!-- Hero Content -->
+    <main class="landing-hero">
+      <div class="hero-badge">
+        <span>Enterprise Service Desk</span>
+      </div>
+      <h1 class="hero-title">
+        Professional IT Support <span>for modern teams</span>
+      </h1>
+      <p class="hero-desc">
+        Simplify ticketing, accelerate issue resolution, and give your teams a clear, reliable support experience built for business continuity.
+      </p>
+
+      <div class="hero-actions">
+        <a href="/register.html" class="btn btn-primary btn-lg" id="hero-get-started">
+          Create Account
+        </a>
+        <a href="/login.html" class="btn btn-secondary btn-lg" id="hero-sign-in">
+          Sign In
+        </a>
+      </div>
+
+      <div class="hero-highlights">
+        <span>ITS-XXXXXX access IDs</span>
+        <span>Service-level tracking</span>
+        <span>Knowledge base search</span>
+        <span>Customer feedback insights</span>
+      </div>
+    </main>
+
+    <!-- Feature Grid -->
+    <section class="features-grid" aria-label="Key features">
+      <div class="feature-card">
+        <h2 class="feature-title">Simple account access</h2>
+        <p class="feature-desc">
+          Create an account and start using the support portal right away. Login details are emailed for convenient reference.
+        </p>
+      </div>
+
+      <div class="feature-card">
+        <h2 class="feature-title">Service tracking</h2>
+        <p class="feature-desc">
+          Monitor priority levels and service deadlines with structured workflow visibility to keep urgent issues in focus and meet response goals.
+        </p>
+      </div>
+
+      <div class="feature-card">
+        <h2 class="feature-title">Internal workflow</h2>
+        <p class="feature-desc">
+          Support teams can capture internal notes and maintain a clear case history without exposing sensitive operational details to end users.
+        </p>
+      </div>
+
+      <div class="feature-card">
+        <h2 class="feature-title">Knowledge base</h2>
+        <p class="feature-desc">
+          Provide a self-service support library that helps users find answers quickly while reducing unnecessary support volume and queue pressure.
+        </p>
+      </div>
+
+      <div class="feature-card">
+        <h2 class="feature-title">Feedback capture</h2>
+        <p class="feature-desc">
+          Resolve issues with a structured feedback loop so your team can evaluate quality, response suitability, and customer satisfaction over time.
+        </p>
+      </div>
+
+      <div class="feature-card">
+        <h2 class="feature-title">Role-based reporting</h2>
+        <p class="feature-desc">
+          Tailor dashboards for users, technicians, and administrators to provide the right insights to the right audience with minimal clutter.
+        </p>
+      </div>
+    </section>
+
+    <!-- Footer -->
+    <footer class="landing-footer">
+      <div>Copyright 2026 ITS - IT Support Ticketing System. All rights reserved.</div>
+      <div class="landing-footer-links">
+        <a href="/login.html">Sign In</a>
+        <a href="/register.html">Register</a>
+        <a href="/forgot-user-id.html">Forgot User ID</a>
+        <a href="/forgot-password.html">Forgot Password</a>
+      </div>
+    </footer>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script>
+    // If user is already authenticated, redirect straight to dashboard
+    (async () => {
+      const user = await App.checkAuth();
+      if (user) {
+        window.location.href = '/dashboard.html';
+      }
+    })();
+
+    // Setup landing theme toggle
+    const themeBtn = document.getElementById('landing-theme-toggle');
+    if (themeBtn) {
+      const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+      themeBtn.querySelector('.theme-toggle-label').textContent = isDark ? 'Light mode' : 'Dark mode';
+      themeBtn.addEventListener('click', () => {
+        App.toggleTheme();
+        const current = document.documentElement.getAttribute('data-theme');
+        themeBtn.querySelector('.theme-toggle-label').textContent = current === 'dark' ? 'Light mode' : 'Dark mode';
+      });
+    }
+  </script>
+</body>
+</html>
